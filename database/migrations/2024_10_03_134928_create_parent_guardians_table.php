@@ -11,13 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('admins', function (Blueprint $table) {
-            $table->id(column: 'admin_id');
+        Schema::create('parent_guardians', function (Blueprint $table) {
+            $table->id('guardian_id');
+            $table->unsignedBigInteger('LRN'); 
             $table->string(column: 'fname');
             $table->string(column: 'lname');
             $table->string(column: 'mname');
-            $table->string(column: 'role');
             $table->string(column: 'address');
+            $table->string(column: 'relationship');
+            $table->string(column: 'contact_no');
             $table->string(column: 'email');
             $table->string(column: 'password');
             $table->timestamps();
@@ -29,6 +31,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('admins');
+        Schema::dropIfExists('parent_guardians');
     }
 };

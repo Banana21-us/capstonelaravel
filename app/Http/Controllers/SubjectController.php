@@ -26,9 +26,9 @@ class SubjectController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'subjectname' => 'required|string|max:255',
-            'gradelevel' => 'required|integer|max:12',
-            'strand' => 'required|string|max:255'
+            'subject_name' => 'required|string|max:255',
+            'grade_level' => 'required|integer|max:12',
+            'strand' => 'string|max:255'
         ]);
 
         $subject = Subject::create($validatedData);

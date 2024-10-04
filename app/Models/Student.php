@@ -4,25 +4,36 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Foundation\Auth\Admin as Authenticatable;
+use Illuminate\Foundation\Auth\Student as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-class Admin extends Model
+class Student extends Model
 {
     use HasFactory, Notifiable, HasApiTokens;
-
-    protected $primaryKey = "admin_id";
-    protected $fillable =[  
-        'admin_id',
+    // protected $primaryKey = 'LRN';
+    protected $table = 'students';
+    protected $fillable =[
+        'LRN',
         'fname',
         'lname',
         'mname',
-        'role',
+        'suffix',
+        'bdate',
+        'bplace',
+        'gender',
+        'religion',
         'address',
+        'contact_no',
         'email',
         'password'
     ];
+    
+
+    public function parentGuardians()
+    {
+        return $this->hasMany(ParentGuardian::class, 'LRN', 'LRN');
+    }
     protected $hidden = [
         'password',
         'remember_token',
@@ -35,3 +46,4 @@ class Admin extends Model
         ];
     }
 }
+

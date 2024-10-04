@@ -9,8 +9,8 @@ class Subject extends Model
 {
     use HasFactory;
     protected $fillable =[
-        'subjectname',
-        'gradelevel',
+        'subject_name',
+        'grade_level',
         'strand'
     ];
 }

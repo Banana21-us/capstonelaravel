@@ -3,36 +3,42 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\User;
+use App\Models\Admin;
 use Illuminate\Support\Facades\Hash;
 class AuthController extends Controller
 {
     public function register(Request $request){
         $formField = $request->validate([
-            "name"=> "required|max:255",
-            "email"=> "required|email|unique:users",
-            "password"=> "required|confirmed"
+            "fname"=> "required|max:255",
+            "lname"=> "required|max:255",
+            "mname"=> "required|max:255",
+            "role"=> "required|max:255",
+            "address"=> "required|max:255",
+            "email"=> "required|email|unique:admins",
+            "password"=> "required"
 
         ]);
-        User::create($formField);
-        // return $request;
-        return 'register';
+        $formField['password'] = bcrypt($formField['password']);
+
+        Admin::create($formField);
+    
+        return response()->json(['message' => 'Registration successful'], 201);
 
     }
     public function login (Request $request){
         $request->validate([
-            "email"=>"required|email|exists:users",
+            "email"=>"required|email|exists:admins",
             "password"=>"required"
         ]);
-        $user = User::where('email',$request->email)->first();
-        if(!$user|| !Hash::check($request->password,$user->password)){
+        $admin = Admin::where('email',$request->email)->first();
+        if(!$admin|| !Hash::check($request->password,$admin->password)){
             return [
                 "message"=>"The provider credentials are incorrect"
             ];
         }
-        $token=$user->createToken($user->name);
+        $token=$admin->createToken($admin->fname);
         return [
-            'user' => $user,
+            'admin' => $admin,
             'token' => $token->plainTextToken
         ];
         // return 'login';

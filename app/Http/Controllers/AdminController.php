@@ -25,9 +25,9 @@ class AdminController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'firstname' => 'required|string|max:255',
-            'middlename' => 'required|string|max:12',
-            'lastname' => 'required|string|max:255',
+            'fname' => 'required|string|max:255',
+            'mname' => 'required|string|max:12',
+            'lname' => 'required|string|max:255',
             'role' => 'required|string|max:255',
             'address' => 'required|string|max:255',
             'email' => 'required|email|max:255',
@@ -57,8 +57,19 @@ class AdminController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Admin $admin)
+    public function destroy($admin)
     {
-        //
+        try {
+            $admin = Admin::find($admin);
+
+            if ($admin) {
+                $admin->delete();
+                return response()->json(['message' => 'Deleted successfully!'], 200);
+            }
+
+            return response()->json(['message' => 'teacher not found.'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Error deleting teacher: ' . $e->getMessage()], 500);
+        }
     }
 }
