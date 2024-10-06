@@ -103,24 +103,24 @@ class ParentGuardianController extends Controller
      * Remove the specified resource from storage.
      */
     public function destroy($email)
-    {
-        // Find all ParentGuardians by email
-        $parentGuardians = ParentGuardian::where('email', $email)->get();
-    
-        // Check if any records exist
-        if ($parentGuardians->isEmpty()) {
-            return response()->json(['message' => 'No Parent/Guardian found with that email.'], 404);
-        }
-    
-        try {
-            // Delete all matching records
-            foreach ($parentGuardians as $guardian) {
-                $guardian->delete();
-            }
-    
-            return response()->json(['message' => 'All Parent/Guardians with that email deleted successfully.'], 200);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Error deleting Parent/Guardians: ' . $e->getMessage()], 500);
-        }
+{
+    // Find all ParentGuardians by email
+    $parentGuardians = ParentGuardian::where('email', $email)->get();
+
+    // Check if any records exist
+    if ($parentGuardians->isEmpty()) {
+        return response()->json(['message' => 'No Parent/Guardian found with that email.'], 404);
     }
+
+    try {
+        // Delete all matching records
+        foreach ($parentGuardians as $guardian) {
+            $guardian->delete();
+        }
+
+        return response()->json(['message' => 'All Parent/Guardians with that email deleted successfully.'], 200);
+    } catch (\Exception $e) {
+        return response()->json(['message' => 'Error deleting Parent/Guardians: ' . $e->getMessage()], 500);
+    }
+}
 }

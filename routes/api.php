@@ -26,8 +26,8 @@ Route::apiResource('parentguardian',ParentGuardianController::class);
 Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
 
 
-Route::delete('/parentguardian/{parentGuardian}', [ParentGuardianController::class, 'destroy']);
-
+// Route::delete('/parentguardian/{parentGuardian}', [ParentGuardianController::class, 'destroy']);
+Route::delete('/parentguardian/{email}', [ParentGuardianController::class, 'destroy']);
 Route::delete('announcements/{ancmnt_id}', 'AnnouncementController@destroy')->name('announcement.destroy');
 Route::delete('admins/{admin_id}', 'AdminController@destroy')->name('admins.destroy');
 
