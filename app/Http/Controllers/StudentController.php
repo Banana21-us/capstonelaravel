@@ -47,9 +47,15 @@ class StudentController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Student $student)
+    public function show($lrn)
     {
-        //
+        $student = Student::where('LRN', $lrn)->first();
+
+        if (!$student) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+
+        return response()->json($student, 200);
     }
 
     /**
