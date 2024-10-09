@@ -26,13 +26,23 @@ class SubjectController extends Controller
     public function store(Request $request)
     {
         $validatedData = $request->validate([
-            'subject_name' => 'required|string|max:255',
+            'subject_name' => 'required|array',
+            'subject_name.*' => 'required|string|max:255',
             'grade_level' => 'required|integer|max:12',
-            'strand' => 'string|max:255'
+            'strand' => 'nullable|string|max:255',
         ]);
 
-        $subject = Subject::create($validatedData);
-        return response()->json($subject, 201);
+        $subjects = [];
+        
+        foreach ($validatedData['subject_name'] as $name) {
+            $subjects[] = Subject::create([
+                'subject_name' => $name,
+                'grade_level' => $validatedData['grade_level'],
+                'strand' => $validatedData['strand'],
+            ]);
+        }
+
+        return response()->json($subjects, 201);
     }
 
     /**

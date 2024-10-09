@@ -11,6 +11,6 @@ class Subject extends Model
     protected $fillable =[
         'subject_name',
         'grade_level',
-        'strand'
+        'strand',
     ];
 }

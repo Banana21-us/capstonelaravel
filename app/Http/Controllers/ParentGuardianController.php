@@ -9,6 +9,7 @@ use App\Http\Requests\UpdateParentGuardianRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 class ParentGuardianController extends Controller
 {
     /**
@@ -17,33 +18,34 @@ class ParentGuardianController extends Controller
     
 
      public function index()
-     {
-         // Retrieve all parent guardians
-         $parents = ParentGuardian::select('guardian_id', 'LRN', 'fname', 'lname', 'relationship', 'contact_no', 'email')
-             ->get()
-             ->groupBy('email');
-     
-         // Format the response to include LRNs and associated students
-             $formattedParents = $parents->map(function ($group) {
-             // Get all LRNs for this guardian
-             $lrns = $group->pluck('LRN')->toArray();
-     
-             // Fetch associated students based on LRNs
-             $students = Student::whereIn('LRN', $lrns)->get();
-     
-             return [
-                 'fname' => $group[0]->fname,
-                 'lname' => $group[0]->lname,
-                 'relationship' => $group[0]->relationship,
-                 'contact_no' => $group[0]->contact_no,
-                 'email' => $group[0]->email,
-                 'LRNs' => $lrns,
-                 'students' => $students // Include the fetched students
-             ];
-         })->values();
-     
-         return response()->json($formattedParents);
-     }
+{
+    // Retrieve all parent guardians and group them by email
+    $parents = DB::table('parent_guardians')
+        ->select('guardian_id', 'LRN', 'fname', 'lname', 'relationship', 'contact_no', 'email')
+        ->get()
+        ->groupBy('email');
+
+    // Format the response to include LRNs and associated students
+    $formattedParents = collect($parents)->map(function ($group) {
+        // Get all LRNs for this guardian
+        $lrns = $group->pluck('LRN')->toArray();
+
+        // Fetch associated students based on LRNs
+        $students = DB::table('students')->whereIn('LRN', $lrns)->get();
+
+        return [
+            'fname' => $group[0]->fname,
+            'lname' => $group[0]->lname,
+            'relationship' => $group[0]->relationship,
+            'contact_no' => $group[0]->contact_no,
+            'email' => $group[0]->email,
+            'LRNs' => $lrns,
+            'students' => $students // Include the fetched students
+        ];
+    })->values();
+
+    return response()->json($formattedParents);
+}
 
     /**
      * Store a newly created resource in storage.
