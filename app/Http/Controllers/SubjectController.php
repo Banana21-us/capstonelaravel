@@ -84,7 +84,7 @@ class SubjectController extends Controller
             'subject_name' => 'required|array',
             'subject_name.*' => 'required|string|max:255',
             'grade_level' => 'required|integer|max:12',
-            'strand' => 'required|string|max:255', 
+            'strand' => 'nullable|string|max:255', // Make strand nullable
         ]);
 
         // Fetch existing subjects for the specified grade level
