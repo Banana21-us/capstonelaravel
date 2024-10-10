@@ -16,19 +16,22 @@ class SectionController extends Controller
     public function index()
     {
         $grades = DB::table('sections')
-        ->select('grade_level', 'section_name')
-        ->get()
-        ->groupBy('grade_level');
+            ->select('grade_level', 'section_name', 'strand') // Include strand in the selection
+            ->get()
+            ->groupBy('grade_level');
 
-    // Format the response to include sections for each grade level
-    $formattedGrades = collect($grades)->map(function ($group) {
-        return [
-            'level' => $group[0]->grade_level,
-            'sections' => $group->pluck('section_name')->toArray() // Get all section names for this grade level
-        ];
-    })->values();
+        // Format the response to include sections for each grade level
+        $formattedGrades = collect($grades)->map(function ($group) {
+            return [
+                'level' => $group[0]->grade_level, // Extracting grade level
+                'strand' => $group[0]->strand, // Extracting strand from the first item
+                'sections' => $group->map(function ($item) {
+                    return $item->section_name; // Only return section names
+                })->values()->toArray() // Convert to array
+            ];
+        })->values()->toArray(); // Convert outer collection to array
 
-    return response()->json($formattedGrades);
+        return response()->json($formattedGrades);
     }
 
     /**
@@ -40,19 +43,20 @@ class SectionController extends Controller
             'section_name' => 'required|array',
             'section_name.*' => 'required|string|max:255',
             'grade_level' => 'required|integer|max:12',
+            'strand' => 'nullable|string|max:255', // Validate strand
         ]);
         
-        $section = [];
+        $sections = [];
         
         foreach ($validatedData['section_name'] as $name) {
-            $section[] = Section::create([
+            $sections[] = Section::create([
                 'section_name' => $name,
                 'grade_level' => $validatedData['grade_level'],
+                'strand' => $validatedData['strand'], // Include strand when creating sections
             ]);
         }
 
-        return response()->json($section, 201);
-
+        return response()->json($sections, 201);
     }
 
     /**
@@ -60,7 +64,7 @@ class SectionController extends Controller
      */
     public function show(Section $section)
     {
-        //
+        return response()->json($section);
     }
 
     /**
@@ -68,35 +72,34 @@ class SectionController extends Controller
      */
     public function update(Request $request, $gradeLevel)
     {
-        // Validate incoming request data
         $validatedData = $request->validate([
-            'section_name' => 'required|array', // Expecting an array of section names
-            'section_name.*' => 'required|string|max:255', // Each name must be a string
+            'section_name' => 'required|array',
+            'section_name.*' => 'required|string|max:255',
             'grade_level' => 'required|integer|max:12',
+            'strand' => 'required|string|max:255', 
         ]);
-    
-        // Find sections associated with the specified grade level
         $sections = Section::where('grade_level', $gradeLevel)->get();
-    
-        // Check if sections exist
+
         if ($sections->isEmpty()) {
             return response()->json(['message' => 'No sections found for this grade level.'], 404);
         }
-    
-        // Clear existing sections for this grade level (optional)
+
         Section::where('grade_level', $gradeLevel)->delete();
-    
-        // Create new sections with validated data
+
         foreach ($validatedData['section_name'] as $name) {
             Section::create([
                 'section_name' => $name,
                 'grade_level' => $validatedData['grade_level'],
+                'strand' => $validatedData['strand'], // Include strand when creating new sections
             ]);
         }
-    
+
         return response()->json(['message' => 'Sections updated successfully.', 'sections' => $validatedData['section_name']], 200);
     }
 
+    /**
+     * Remove the specified resource from storage.
+     */
     public function destroy($gradeLevel)
     {
         // Delete sections associated with the specified grade level

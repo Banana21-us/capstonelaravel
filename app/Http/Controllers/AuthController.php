@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Admin;
+
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
+
 class AuthController extends Controller
 {
     public function register(Request $request){
@@ -25,7 +28,28 @@ class AuthController extends Controller
         return response()->json(['message' => 'Registration successful'], 201);
 
     }
-    public function login (Request $request){
+    public function login(Request $request)
+    {
+        // $request->validate([
+        //     "email" => "required|email|exists:admins,email",
+        //     "password" => "required"
+        // ]);
+        // $admin = Admin::where('email', $request->email)->first();
+        // if (!$admin || !Hash::check($request->password, $admin->password)) {
+        //     throw ValidationException::withMessages([
+        //         'email' => ['The provided credentials are incorrect.'],
+        //     ]);
+        // }
+        // if ($admin->role !== 'Principal') {
+        //     return response()->json(['message' => 'Unauthorized: Only Principals can log in.'], 403);
+        // }
+        // $token = $admin->createToken($admin->fname)->plainTextToken;
+
+        // return response()->json([
+        //     'admin' => $admin,
+        //     'token' => $token
+        // ]);
+
         $request->validate([
             "email"=>"required|email|exists:admins",
             "password"=>"required"
@@ -41,8 +65,6 @@ class AuthController extends Controller
             'admin' => $admin,
             'token' => $token->plainTextToken
         ];
-        // return 'login';
-        // return $user;
     }
     public function logout(Request $request){
         $request->user()->tokens()->delete();

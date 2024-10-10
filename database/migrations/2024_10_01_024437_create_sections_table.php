@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id('section_id');
             $table->string(column: 'section_name');
             $table->integer(column: 'grade_level');
-
+            $table->string(column: 'strand');
             $table->timestamps();
         });
     }
