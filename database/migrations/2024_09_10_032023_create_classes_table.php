@@ -14,9 +14,10 @@ return new class extends Migration
         Schema::create('classes', function (Blueprint $table) {
             $table->id('class_id');
             $table->unsignedBigInteger('admin_id'); 
-            $table->unsignedBigInteger('subject_id');
             $table->unsignedBigInteger('section_id');
+            $table->unsignedBigInteger('subject_id');
             $table->integer('room');
+            $table->string('time'); 
             $table->string('schedule');
             $table->timestamps();
         });

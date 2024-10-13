@@ -10,30 +10,27 @@ use Illuminate\Support\Facades\DB;
 
 class SectionController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+
     public function index()
     {
-        $grades = DB::table('sections')
-            ->select('grade_level', 'section_name', 'strand') // Include strand in the selection
-            ->get()
-            ->groupBy('grade_level');
+        $sections = Section::all(); 
+        $organizedSections = [];
 
-        // Format the response to include sections for each grade level
-        $formattedGrades = collect($grades)->map(function ($group) {
-            return [
-                'level' => $group[0]->grade_level, // Extracting grade level
-                'strand' => $group[0]->strand, // Extracting strand from the first item
-                'sections' => $group->map(function ($item) {
-                    return $item->section_name; // Only return section names
-                })->values()->toArray() // Convert to array
-            ];
-        })->values()->toArray(); // Convert outer collection to array
+        foreach ($sections as $section) {
+            $key = $section->grade_level . '-' . $section->strand;
 
-        return response()->json($formattedGrades);
+            if (!isset($organizedSections[$key])) {
+                $organizedSections[$key] = [
+                    'level' => $section->grade_level,
+                    'strand' => $section->strand,
+                    'sections' => []
+                ];
+            }
+            $organizedSections[$key]['sections'][] = strtolower($section->section_name);
+        }
+
+        return array_values($organizedSections);
     }
-
     /**
      * Store a newly created resource in storage.
      */
@@ -69,8 +66,7 @@ class SectionController extends Controller
 
     /**
      * Update the specified resource in storage.
-     */
-    public function update(Request $request, $gradeLevel)
+     */public function update(Request $request, $gradeLevel, $strand)
     {
         $validatedData = $request->validate([
             'section_name' => 'required|array',
@@ -78,37 +74,33 @@ class SectionController extends Controller
             'grade_level' => 'required|integer|max:12',
             'strand' => 'required|string|max:255', 
         ]);
-        $sections = Section::where('grade_level', $gradeLevel)->get();
-
+        $sections = Section::where('grade_level', $gradeLevel)->where('strand', $strand)->get();
         if ($sections->isEmpty()) {
-            return response()->json(['message' => 'No sections found for this grade level.'], 404);
+            return response()->json(['message' => 'No sections found for this grade level and strand.'], 404);
         }
-
-        Section::where('grade_level', $gradeLevel)->delete();
-
+        Section::where('grade_level', $gradeLevel)->where('strand', $strand)->delete();
         foreach ($validatedData['section_name'] as $name) {
             Section::create([
                 'section_name' => $name,
                 'grade_level' => $validatedData['grade_level'],
-                'strand' => $validatedData['strand'], // Include strand when creating new sections
+                'strand' => $validatedData['strand'],
             ]);
         }
-
         return response()->json(['message' => 'Sections updated successfully.', 'sections' => $validatedData['section_name']], 200);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy($gradeLevel)
-    {
-        // Delete sections associated with the specified grade level
-        $deletedRows = Section::where('grade_level', $gradeLevel)->delete();
 
+    public function destroy($gradeLevel, $strand)
+    {
+        // Delete sections associated with the specified grade level and strand
+        $deletedRows = Section::where('grade_level', $gradeLevel)
+                              ->where('strand', $strand)
+                              ->delete();
+    
         if ($deletedRows) {
             return response()->json(['message' => 'Sections deleted successfully.'], 200);
         } else {
-            return response()->json(['message' => 'No sections found for this grade level.'], 404);
+            return response()->json(['message' => 'No sections found for this grade level and strand.'], 404);
         }
     }
 }
