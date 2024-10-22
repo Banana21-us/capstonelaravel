@@ -49,6 +49,8 @@ Route::post('/login',[AuthController::class,'login']);
     Route::delete('announcements/{ancmnt_id}', 'AnnouncementController@destroy')->name('announcement.destroy');
     
     Route::delete('admins/{admin_id}', 'AdminController@destroy')->name('admins.destroy');
+    Route::put('/admins/{admin}', [AdminController::class, 'update']);
+    
     Route::post('/register',[AuthController::class,'register']);
     
 
