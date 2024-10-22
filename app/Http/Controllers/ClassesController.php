@@ -29,21 +29,21 @@ class ClassesController extends Controller
                 'a.lname',
                 'sub.subject_name',
                 'c.time',
-                'c.schedule'
+                'c.schedule',
+                'c.subject_id',  
+                'c.section_id',
+                'c.admin_id'
             )
+            ->orderBy('s.grade_level')
+            ->orderByRaw("FIELD(s.strand,'-', 'STEM', 'ABM', 'HUMMS') DESC")
             ->get();
+    
         return response()->json($classes);
     }
 public function getclasssubjects() {
-    // Fetch all subjects from the database
     $subjects = Subject::all();
-
-    // Initialize an array to hold the structured data
     $structuredSubjects = [];
-
-    // Group subjects by level and strand
     foreach ($subjects as $subject) {
-        // Find or create a group for the current level and strand
         $key = "{$subject->grade_level}-{$subject->strand}";
 
         if (!isset($structuredSubjects[$key])) {
@@ -54,22 +54,17 @@ public function getclasssubjects() {
             ];
         }
 
-        // Add the subject with its ID and name to the group
         $structuredSubjects[$key]['subjects'][] = [
             'subject_id' => $subject->subject_id,
             'subject_name' => $subject->subject_name,
         ];
     }
 
-    // Reindex the array to be a simple array instead of associative
     $structuredSubjects = array_values($structuredSubjects);
-
-    // Return the structured subjects as a JSON response
     return response()->json($structuredSubjects);
 }
 
     public function getSection() {
-        // Your existing code here
         $levelsAndStrands = DB::table('sections')
             ->select('grade_level', 'strand')
             ->distinct()
@@ -170,10 +165,63 @@ public function getclasssubjects() {
     /**
      * Update the specified resource in storage.
      */
-    public function update(UpdateClassesRequest $request, Classes $classes)
-    {
-        //
-    }
+   
+
+        public function update(Request $request, $id)
+        {  
+            $classes = Classes::find($id);
+            DB::beginTransaction();
+        
+            try {
+                // Validate the request data
+                $validatedData = $request->validate([
+                    'section_id' => 'required|exists:sections,section_id',
+                    'room' => 'required|integer|max:999',
+                    'forms' => 'required|array',
+                    'forms.*.teacher' => 'required|exists:admins,admin_id',
+                    'forms.*.subject_id' => 'required|exists:subjects,subject_id',
+                    'forms.*.time' => 'required|string|max:255',
+                    'forms.*.selectedDays' => 'required|array',
+                    'forms.*.selectedDays.*' => 'required|string|max:255',
+                ]);
+        
+                // Log the validated data
+                Log::info('Updating class with validated data:', [
+                    'class_id' => $classes->class_id,
+                    'section_id' => $validatedData['section_id'],
+                    'room' => $validatedData['room'],
+                    'forms_count' => count($validatedData['forms']),
+                ]);
+        
+                // Update the existing class details
+                foreach ($validatedData['forms'] as $form) {
+                    $classes->update([
+                        'admin_id' => $form['teacher'],
+                        'section_id' => $validatedData['section_id'],
+                        'room' => $validatedData['room'],
+                        'time' => $form['time'],
+                        'schedule' => implode(',', $form['selectedDays']),
+                        'subject_id' => $form['subject_id'],
+                    ]);
+                }
+        
+                DB::commit(); // Commit the transaction
+                return response()->json(['message' => 'Classes successfully updated'], 200);
+            } catch (ValidationException $e) {
+                DB::rollBack(); // Rollback on validation errors
+                Log::error('Validation failed:', $e->errors());
+                return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+            } catch (\Exception $e) {
+                DB::rollBack();
+                return response()->json(['message' => 'Update failed', 'error' => $e->getMessage()], 500);
+            }
+        }
+     
+
+     
+
+     
+
 
     /**
      * Remove the specified resource from storage.

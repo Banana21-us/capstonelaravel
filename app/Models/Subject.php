@@ -9,11 +9,9 @@ class Subject extends Model
 {
     use HasFactory;
     protected $table = 'subjects';
-    protected $fillable =[
-        'subject_name',
-        'grade_level',
-        'strand',
-    ];
+    protected $primaryKey = 'subject_id';
+    public $incrementing = false; 
+    protected $fillable = ['subject_name', 'grade_level', 'strand'];
     public function classes()
     {
         return $this->hasMany(Classes::class);

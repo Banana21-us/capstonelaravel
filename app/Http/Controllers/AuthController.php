@@ -50,6 +50,8 @@ class AuthController extends Controller
         //     'token' => $token
         // ]);
 
+        //
+
         $request->validate([
             "email"=>"required|email|exists:admins",
             "password"=>"required"
@@ -60,11 +62,16 @@ class AuthController extends Controller
                 "message"=>"The provider credentials are incorrect"
             ];
         }
-        $token=$admin->createToken($admin->fname);
+        $token = $admin->createToken($admin->fname);
+        // $token = $admin->createToken($admin->fname)->plainTextToken;
+
         return [
             'admin' => $admin,
-            'token' => $token->plainTextToken
+            'token' => $token->plainTextToken,
+            'id'=> $admin->admin_id
         ];
+
+
     }
     public function logout(Request $request){
         $request->user()->tokens()->delete();

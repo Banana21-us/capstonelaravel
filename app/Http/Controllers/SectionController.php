@@ -26,7 +26,7 @@ class SectionController extends Controller
                     'sections' => []
                 ];
             }
-            $organizedSections[$key]['sections'][] = strtolower($section->section_name);
+            $organizedSections[$key]['sections'][] = ucfirst($section->section_name);
         }
 
         return array_values($organizedSections);
@@ -66,28 +66,50 @@ class SectionController extends Controller
 
     /**
      * Update the specified resource in storage.
-     */public function update(Request $request, $gradeLevel, $strand)
+     */
+    public function update(Request $request, $gradeLevel, $strand)
     {
+        // Validate incoming request data
         $validatedData = $request->validate([
             'section_name' => 'required|array',
             'section_name.*' => 'required|string|max:255',
             'grade_level' => 'required|integer|max:12',
             'strand' => 'required|string|max:255', 
         ]);
-        $sections = Section::where('grade_level', $gradeLevel)->where('strand', $strand)->get();
-        if ($sections->isEmpty()) {
-            return response()->json(['message' => 'No sections found for this grade level and strand.'], 404);
+
+        // Retrieve existing sections
+        $existingSections = Section::where('grade_level', $gradeLevel)
+                                ->where('strand', $strand)
+                                ->get();
+
+        // Update or create sections based on incoming data
+        foreach ($validatedData['section_name'] as $index => $name) {
+            if (isset($existingSections[$index])) {
+                // Update existing section
+                $existingSections[$index]->update([
+                    'section_name' => $name,
+                    // Do not update grade_level and strand if they shouldn't change
+                ]);
+            } else {
+                // Create new section if it doesn't exist
+                Section::create([
+                    'section_name' => $name,
+                    'grade_level' => $validatedData['grade_level'],
+                    'strand' => $validatedData['strand'],
+                ]);
+            }
         }
-        Section::where('grade_level', $gradeLevel)->where('strand', $strand)->delete();
-        foreach ($validatedData['section_name'] as $name) {
-            Section::create([
-                'section_name' => $name,
-                'grade_level' => $validatedData['grade_level'],
-                'strand' => $validatedData['strand'],
-            ]);
+
+        // Delete sections that are no longer present in the incoming data
+        foreach ($existingSections as $existingSection) {
+            if (!in_array($existingSection->section_name, $validatedData['section_name'])) {
+                $existingSection->delete();
+            }
         }
+
         return response()->json(['message' => 'Sections updated successfully.', 'sections' => $validatedData['section_name']], 200);
     }
+
 
 
     public function destroy($gradeLevel, $strand)

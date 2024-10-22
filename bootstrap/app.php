@@ -14,8 +14,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
 
+        // $middleware->alias([
+        //     'online'=>\App\Http\Middleware\Admin::class
+        // ]);
         $middleware->alias([
-            'admin'=>Admin::class
+            'online' => \App\Http\Middleware\Online::class
         ]);
 
         //

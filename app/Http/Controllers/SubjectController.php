@@ -6,6 +6,7 @@ use App\Models\Subject;
 use App\Http\Requests\StoreSubjectRequest;
 use App\Http\Requests\UpdateSubjectRequest;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log; 
 
 
 class SubjectController extends Controller
@@ -26,7 +27,7 @@ class SubjectController extends Controller
                 'subjects' => []  
             ];
         }
-        $organizedSubjects[$key]['subjects'][] = strtolower($subject->subject_name);
+        $organizedSubjects[$key]['subjects'][] = ucfirst($subject->subject_name);
     }
 
     return array_values($organizedSubjects);
@@ -61,6 +62,7 @@ class SubjectController extends Controller
 
     public function update(Request $request, $gradeLevel, $strand)
 {
+    // Validate incoming request data
     $validatedData = $request->validate([
         'subject_name' => 'required|array',
         'subject_name.*' => 'required|string|max:255',
@@ -68,25 +70,46 @@ class SubjectController extends Controller
         'strand' => 'required|string|max:255',
     ]);
 
-    // Check if subjects exist
-    $subjects = Subject::where('grade_level', $gradeLevel)->where('strand', $strand)->get();
+    // Retrieve existing subjects
+    $existingSubjects = Subject::where('grade_level', $gradeLevel)
+                               ->where('strand', $strand)
+                               ->get();
 
-    // Delete existing subjects
-    Subject::where('grade_level', $gradeLevel)->where('strand', $strand)->delete();
+    // Create an array of existing subject names for comparison
+    $existingSubjectNames = $existingSubjects->pluck('subject_name')->toArray();
 
-    // Create new subjects
-    foreach ($validatedData['subject_name'] as $name) {
-        Subject::create([
-            'subject_name' => $name,
-            'grade_level' => $validatedData['grade_level'],
-            'strand' => $validatedData['strand'],
-        ]);
+    // Update or create subjects based on incoming data
+    foreach ($validatedData['subject_name'] as $index => $name) {
+        if (isset($existingSubjects[$index])) {
+            // Update existing subject
+            $existingSubjects[$index]->update([
+                'subject_name' => $name,
+                // Do not update grade_level and strand if they shouldn't change
+            ]);
+        } else {
+            // Create new subject if it doesn't exist
+            Subject::create([
+                'subject_name' => $name,
+                'grade_level' => $validatedData['grade_level'],
+                'strand' => $validatedData['strand'],
+            ]);
+        }
     }
 
+    // Delete subjects that are no longer present in the incoming data
+    foreach ($existingSubjects as $index => $existingSubject) {
+        if (!in_array($existingSubject->subject_name, $validatedData['subject_name'])) {
+            $existingSubject->delete(); 
+            unset($existingSubjects[$index]);
+        }
+    }
+    
+    
+
     return response()->json(['message' => 'Subjects updated successfully.', 'subjects' => $validatedData['subject_name']], 200);
-}
-
-
+}   
+    
+    
     /**
      * Remove the specified resource from storage.
      */

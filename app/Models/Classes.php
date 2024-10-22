@@ -9,6 +9,7 @@ class Classes extends Model
     use HasFactory;
     protected $table = 'classes';
     protected $primaryKey = 'class_id';
+    public $incrementing = false;
     public $timestamps = true;
     protected $fillable =[
         'admin_id',
