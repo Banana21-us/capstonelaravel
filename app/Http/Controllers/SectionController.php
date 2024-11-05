@@ -15,20 +15,31 @@ class SectionController extends Controller
     {
         $sections = Section::all(); 
         $organizedSections = [];
-
+    
         foreach ($sections as $section) {
             $key = $section->grade_level . '-' . $section->strand;
-
+    
+            // Initialize the array for a new key if it doesn't exist
             if (!isset($organizedSections[$key])) {
                 $organizedSections[$key] = [
                     'level' => $section->grade_level,
                     'strand' => $section->strand,
-                    'sections' => []
+                    'sections' => []  // Change this to sections
                 ];
             }
-            $organizedSections[$key]['sections'][] = ucfirst($section->section_name);
+    
+            $sectionEntry = [
+                'name' => ucfirst($section->section_name),
+                'id' => $section->section_id
+            ];
+    
+            // Check for duplicates by name
+            $sectionNames = array_column($organizedSections[$key]['sections'], 'name');
+            if (!in_array($sectionEntry['name'], $sectionNames)) {
+                $organizedSections[$key]['sections'][] = $sectionEntry;
+            }
         }
-
+    
         return array_values($organizedSections);
     }
     /**
@@ -101,13 +112,23 @@ class SectionController extends Controller
         }
 
         // Delete sections that are no longer present in the incoming data
-        foreach ($existingSections as $existingSection) {
-            if (!in_array($existingSection->section_name, $validatedData['section_name'])) {
-                $existingSection->delete();
-            }
-        }
+        // foreach ($existingSections as $existingSection) {
+        //     if (!in_array($existingSection->section_name, $validatedData['section_name'])) {
+        //         $existingSection->delete();
+        //     }
+        // }
 
         return response()->json(['message' => 'Sections updated successfully.', 'sections' => $validatedData['section_name']], 200);
+    }
+    public function removeSection(Request $request, $id)
+    {
+        $section = Section::find($id);
+    
+        if (!$section) {
+            return response()->json(['message' => 'section not found.'], 404);
+        }
+        $section->delete();
+        return response()->json(['message' => 'section deleted successfully.'], 200);
     }
 
 

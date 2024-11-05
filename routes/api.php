@@ -36,15 +36,20 @@ Route::post('/login',[AuthController::class,'login']);
     Route::apiResource('sections',SectionController::class);
     Route::delete('/sections/{gradeLevel}/{strand}', [SectionController::class, 'destroy']);
     Route::put('/sections/{gradeLevel}/{strand}', [SectionController::class, 'update']);
-    
+    Route::delete('/section/removesection/{id}', [SectionController::class, 'removeSection']);
+
+
     Route::apiResource('subjects',SubjectController::class);
-    Route::delete('/subjects/{gradeLevel}/{strand}', [SubjectController::class, 'destroy']);
     Route::put('/subjects/{gradeLevel}/{strand}', [SubjectController::class, 'update']);
-    
+    Route::delete('/subjects/{gradeLevel}/{strand}', [SubjectController::class, 'destroy']);
+    Route::delete('/subject/removesubject/{id}', [SubjectController::class, 'removesubject']);
+
+
     Route::patch('/parentguardian/{email}', [ParentGuardianController::class, 'update']);
     Route::delete('/parentguardian/{email}', [ParentGuardianController::class, 'destroy']);
     Route::delete('parentguardian/{email}/remove', [ParentGuardianController::class, 'remove']);
-    
+    Route::get('/parentguardianfilter', [ParentGuardianController::class, 'getfilteredParents']);
+
     Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
     Route::delete('announcements/{ancmnt_id}', 'AnnouncementController@destroy')->name('announcement.destroy');
     

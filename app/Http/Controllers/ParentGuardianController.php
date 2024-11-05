@@ -14,11 +14,9 @@ class ParentGuardianController extends Controller
     /**
      * Display a listing of the resource.
      */
-    
-
      public function index() {
         $parents = DB::table('parent_guardians')
-            ->select('guardian_id', 'LRN', 'fname', 'lname', 'relationship', 'contact_no', 'email')
+            ->select('guardian_id', 'LRN', 'fname', 'lname','mname', 'relationship', 'contact_no', 'email')
             ->get()
             ->groupBy('email');
     
@@ -32,6 +30,7 @@ class ParentGuardianController extends Controller
             return [
                 'fname' => $group[0]->fname,
                 'lname' => $group[0]->lname,
+                'mname' => $group[0]->mname,
                 'relationship' => $group[0]->relationship,
                 'contact_no' => $group[0]->contact_no,
                 'email' => $group[0]->email,
@@ -91,6 +90,7 @@ class ParentGuardianController extends Controller
         return response()->json($parentGuardian);
     }
 
+
     /**
      * Update the specified resource in storage.
      */
@@ -130,12 +130,10 @@ class ParentGuardianController extends Controller
      }
      
      public function remove(Request $request, $email) {
-        // Validate LRN from query parameters
         $validatedData = $request->validate([
-            'LRN' => 'required|exists:parent_guardians,LRN', // Change to expect a single value
+            'LRN' => 'required|exists:parent_guardians,LRN', 
         ]);
     
-        // Delete the specified LRN
         $deleted = ParentGuardian::where('LRN', $validatedData['LRN'])->delete();
         Log::info('LRN deletion attempt', ['LRN' => $validatedData['LRN'], 'deleted' => $deleted]);
     
