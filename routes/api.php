@@ -57,8 +57,7 @@ Route::post('/login',[AuthController::class,'login']);
     Route::put('/admins/{admin}', [AdminController::class, 'update']);
     
     Route::post('/register',[AuthController::class,'register']);
-    
-
+    Route::put('/update-password', [AuthController::class, 'updatePass']);
 // });
 Route::middleware('auth:sanctum')->post('/logout',[AuthController::class,'logout']);
 

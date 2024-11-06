@@ -4,10 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Admin;
-
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 class AuthController extends Controller
 {
     public function register(Request $request){
@@ -18,7 +18,8 @@ class AuthController extends Controller
             "role"=> "required|max:255",
             "address"=> "required|max:255",
             "email"=> "required|email|unique:admins",
-            "password"=> "required"
+            "password"=> "required",
+            // "password_confirmation" => "required"
 
         ]);
         $formField['password'] = bcrypt($formField['password']);
@@ -28,6 +29,43 @@ class AuthController extends Controller
         return response()->json(['message' => 'Registration successful'], 201);
 
     }
+    public function updatePass(Request $request)
+{
+    // Validate incoming request
+    $request->validate([
+        'admin_id' => 'required|integer|exists:admins,admin_id',
+        'oldPassword' => 'nullable|string', // Make oldPassword optional
+        'newPassword' => 'nullable|string|min:8|confirmed', // Allow newPassword to be optional
+        'fname' => 'required|string|max:255',
+        'mname' => 'required|string|max:255',
+        'lname' => 'required|string|max:255',
+        'email' => 'required|email|max:255|unique:admins,email,' . $request->admin_id . ',admin_id', // Check uniqueness for email
+        'address' => 'required|string|max:255',
+    ]);
+
+    // Retrieve user
+    $user = Admin::find($request->admin_id);
+
+    // If old password is provided, check it
+    if ($request->oldPassword && !Hash::check($request->oldPassword, $user->password)) {
+        return response()->json(['message' => 'Wrong password'], 401);
+    }
+
+    // Update user details
+    if ($request->newPassword) {
+        $user->password = Hash::make($request->newPassword); // Update password if provided
+    }
+    
+    $user->fname = $request->fname;
+    $user->mname = $request->mname;
+    $user->lname = $request->lname;
+    $user->email = $request->email;
+    $user->address = $request->address;
+
+    $user->save(); // Save all changes
+
+    return response()->json(['message' => 'User details updated successfully']);
+}
     public function login(Request $request)
     {
         // $request->validate([

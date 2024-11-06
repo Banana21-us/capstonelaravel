@@ -19,29 +19,17 @@ class Online
 public function handle(Request $request, Closure $next): Response
 {
     Log::info('Middleware triggered for URL: ' . $request->url());
-
-    // Retrieve the token from the request
     $token = $request->bearerToken();
     Log::info('Token received', ['token' => $token]);
-
-    // Check if the token is present
     if (!$token) {
         Log::warning('Unauthorized access attempt: No token provided.', ['user' => null]);
         return response()->json(['message' => 'Unauthorized: No token provided'], 401);
     }
-
-    // Attempt to authenticate the user using the token
-    $admin = Admin::where('api_token', $token)->first(); // Make sure your Admin model is imported
-
-    // Log the result of the authentication attempt
+    $admin = Admin::where('api_token', $token)->first();
     Log::info('Authenticated user', ['user' => $admin]);
-
-    // Check if user exists and has the appropriate role
     if ($admin && ($admin->role === 'Teacher' || $admin->role === 'Admin')) {
         return $next($request);
     }
-
-    // Log unauthorized access attempt
     Log::warning('Unauthorized access attempt', ['user' => $admin]);
     return response()->json(['message' => 'Unauthorized'], 401);
 }
