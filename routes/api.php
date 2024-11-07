@@ -58,6 +58,16 @@ Route::post('/login',[AuthController::class,'login']);
     
     Route::post('/register',[AuthController::class,'register']);
     Route::put('/update-password', [AuthController::class, 'updatePass']);
+    Route::post('/upload-image', [AuthController::class, 'uploadImage']);
+    Route::get('assets/adminPic/{filename}', function ($filename) {
+        $path = public_path('assets/adminPic/' . $filename);
+        
+        if (file_exists($path)) {
+            return response()->file($path);
+        }
+    
+        abort(404);
+    });
 // });
 Route::middleware('auth:sanctum')->post('/logout',[AuthController::class,'logout']);
 

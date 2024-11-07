@@ -65,7 +65,42 @@ class AuthController extends Controller
     $user->save(); // Save all changes
 
     return response()->json(['message' => 'User details updated successfully']);
-}
+    }
+    public function uploadImage(Request $request)
+{
+    $request->validate([
+        'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+        'admin_id' => 'required|exists:admins,admin_id'
+    ]);
+
+    try {
+        $admin = Admin::findOrFail($request->input('admin_id'));
+        $image = $request->file('image');
+        $imageName = time() . '.' . $image->getClientOriginalExtension();
+        $destinationPath = public_path('assets/adminPic');
+
+        // Ensure the directory exists
+        if (!is_dir($destinationPath)) {
+            mkdir($destinationPath, 0755, true);
+        }
+
+        // Delete the old image if exists
+        if ($admin->admin_pic && file_exists($path = $destinationPath . '/' . $admin->admin_pic)) {
+            unlink($path);
+        }
+
+        // Move the new image and update the admin profile
+        $image->move($destinationPath, $imageName);
+        $admin->update(['admin_pic' => $imageName]);
+
+        return response()->json([
+            'message' => 'Image uploaded successfully.',
+            'image_url' => url('assets/adminPic/' . $imageName)
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Image upload failed.'], 500);
+    }
+    }
     public function login(Request $request)
     {
         // $request->validate([

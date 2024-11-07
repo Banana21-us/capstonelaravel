@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string(column: 'mname');
             $table->string(column: 'role');
             $table->string(column: 'address');
+            $table->string(column: 'admin_pic')->nullable();
             $table->string(column: 'email');
             $table->string(column: 'password');
             $table->timestamps();
