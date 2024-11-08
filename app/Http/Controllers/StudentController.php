@@ -14,7 +14,7 @@ class StudentController extends Controller
      */
     public function index()
     {
-        $student = Student::all();
+        $student = Student::orderBy('lname', 'asc')->get();
         return $student;
     }
 
@@ -48,15 +48,18 @@ class StudentController extends Controller
      * Display the specified resource.
      */
     public function show($lrn)
-    {
-        $student = Student::where('LRN', $lrn)->first();
+{
+    $student = Student::where('LRN', $lrn)
+                ->orderBy('lname', 'asc') // Order by last name in ascending order
+                ->first();
 
-        if (!$student) {
-            return response()->json(['message' => 'Student not found.'], 404);
-        }
-
-        return response()->json($student, 200);
+    if (!$student) {
+        return response()->json(['message' => 'Student not found.'], 404);
     }
+
+    return response()->json($student, 200);
+}
+
 
     /**
      * Update the specified resource in storage.

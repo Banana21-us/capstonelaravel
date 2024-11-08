@@ -10,25 +10,37 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 class AuthController extends Controller
 {
-    public function register(Request $request){
+
+    public function register(Request $request)
+    {
+        Log::info('Starting registration process.');
+    
         $formField = $request->validate([
-            "fname"=> "required|max:255",
-            "lname"=> "required|max:255",
-            "mname"=> "required|max:255",
-            "role"=> "required|max:255",
-            "address"=> "required|max:255",
-            "email"=> "required|email|unique:admins",
-            "password"=> "required",
-            // "password_confirmation" => "required"
-
+            "fname" => "required|max:255",
+            "lname" => "required|max:255",
+            "mname" => "required|max:255",
+            "role" => "required|max:255",
+            "address" => "required|max:255",
+            "email" => "required|email|unique:admins",
+            "password" => "required",
         ]);
+    
+        Log::info('Validation successful.', ['formField' => $formField]);
+    
         $formField['password'] = bcrypt($formField['password']);
-
-        Admin::create($formField);
+        Log::info('Password encrypted.');
+    
+        try {
+            $admin = Admin::create($formField);
+            Log::info('Admin created successfully.', ['admin_id' => $admin->id]);
+        } catch (\Exception $e) {
+            Log::error('Error creating admin.', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Registration failed'], 500);
+        }
     
         return response()->json(['message' => 'Registration successful'], 201);
-
     }
+    
     public function updatePass(Request $request)
 {
     // Validate incoming request
