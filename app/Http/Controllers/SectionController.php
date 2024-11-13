@@ -12,36 +12,42 @@ class SectionController extends Controller
 {
 
     public function index()
-    {
-        $sections = Section::all(); 
-        $organizedSections = [];
+{
+    $sections = Section::all();
+    $organizedSections = [];
     
-        foreach ($sections as $section) {
-            $key = $section->grade_level . '-' . $section->strand;
-    
-            // Initialize the array for a new key if it doesn't exist
-            if (!isset($organizedSections[$key])) {
-                $organizedSections[$key] = [
-                    'level' => $section->grade_level,
-                    'strand' => $section->strand,
-                    'sections' => []  // Change this to sections
-                ];
-            }
-    
-            $sectionEntry = [
-                'name' => ucfirst($section->section_name),
-                'id' => $section->section_id
+    foreach ($sections as $section) {
+        $key = $section->grade_level . '-' . $section->strand;
+        
+        // Initialize the array for a new key if it doesn't exist
+        if (!isset($organizedSections[$key])) {
+            $organizedSections[$key] = [
+                'level' => $section->grade_level,
+                'strand' => $section->strand,
+                'sections' => []  // Change this to sections
             ];
-    
-            // Check for duplicates by name
-            $sectionNames = array_column($organizedSections[$key]['sections'], 'name');
-            if (!in_array($sectionEntry['name'], $sectionNames)) {
-                $organizedSections[$key]['sections'][] = $sectionEntry;
-            }
         }
-    
-        return array_values($organizedSections);
+
+        $sectionEntry = [
+            'name' => ucfirst($section->section_name),
+            'id' => $section->section_id
+        ];
+        
+        // Check for duplicates by name
+        $sectionNames = array_column($organizedSections[$key]['sections'], 'name');
+        if (!in_array($sectionEntry['name'], $sectionNames)) {
+            $organizedSections[$key]['sections'][] = $sectionEntry;
+        }
     }
+
+    // Sort the $organizedSections array by grade level (ascending order)
+    uasort($organizedSections, function($a, $b) {
+        return $a['level'] <=> $b['level']; // Compare grade levels in ascending order
+    });
+    
+    return array_values($organizedSections);
+}
+
     /**
      * Store a newly created resource in storage.
      */
@@ -63,6 +69,7 @@ class SectionController extends Controller
                 'strand' => $validatedData['strand'], // Include strand when creating sections
             ]);
         }
+        
 
         return response()->json($sections, 201);
     }

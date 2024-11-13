@@ -15,10 +15,18 @@ class AdminController extends Controller
      * Display a listing of the resource.
      */
     public function index()
-    {
-        $admin = Admin::all();
-        return $admin;
-    }
+{
+    // Fetch all admin records from the database
+    $admins = Admin::all();
+
+    // Sort the admins by last name (lname) in a case-insensitive manner
+    $sortedAdmins = $admins->sortBy(function ($admin) {
+        return strtolower($admin->lname); // Convert lname to lowercase for case-insensitive sorting
+    })->values();
+
+    // Return the sorted list of admins as a JSON response
+    return response()->json($sortedAdmins);
+}
 
     /**
      * Store a newly created resource in storage.

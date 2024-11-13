@@ -16,12 +16,12 @@ class SubjectController extends Controller
      */
     public function index()
     {
-        $subjects = Subject::all(); 
+        $subjects = Subject::all();
         $organizedSubjects = [];
-    
+        
         foreach ($subjects as $subject) {
             $key = $subject->grade_level . '-' . $subject->strand;
-    
+            
             // Initialize the array for a new key if it doesn't exist
             if (!isset($organizedSubjects[$key])) {
                 $organizedSubjects[$key] = [
@@ -30,12 +30,12 @@ class SubjectController extends Controller
                     'subject_name' => []  // Change this to subject_name
                 ];
             }
-
+    
             $subjectEntry = [
                 'name' => ucfirst($subject->subject_name),
                 'id' => $subject->subject_id  // Assuming the subject model has an id property
             ];
-    
+            
             // Check for duplicates by name
             $subjectNames = array_column($organizedSubjects[$key]['subject_name'], 'name');
             if (!in_array($subjectEntry['name'], $subjectNames)) {
@@ -43,9 +43,14 @@ class SubjectController extends Controller
             }
         }
     
+        // Sort the $organizedSubjects array by grade level (ascending order)
+        uasort($organizedSubjects, function($a, $b) {
+            return $a['level'] <=> $b['level']; // Compare grade levels in ascending order
+        });
+        
         return array_values($organizedSubjects);
     }
-
+    
     public function store(Request $request)
     {
         $validatedData = $request->validate([

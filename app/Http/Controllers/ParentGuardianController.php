@@ -14,9 +14,9 @@ class ParentGuardianController extends Controller
     /**
      * Display a listing of the resource.
      */
-     public function index() {
+    public function index() {
         $parents = DB::table('parent_guardians')
-            ->select('guardian_id', 'LRN', 'fname', 'lname','mname', 'relationship', 'contact_no', 'email')
+            ->select('guardian_id', 'LRN', 'fname', 'lname', 'mname', 'relationship', 'contact_no', 'email')
             ->get()
             ->groupBy('email');
     
@@ -39,9 +39,12 @@ class ParentGuardianController extends Controller
             ];
         })->values();
     
-        Log::info('Formatted parents data:', ['formattedParents' => $formattedParents]); // Log formatted data
+        // Sort parents by last name (lname)
+        $sortedParents = $formattedParents->sortBy('lname')->values();
     
-        return response()->json($formattedParents);
+        Log::info('Sorted parents data:', ['sortedParents' => $sortedParents]); // Log sorted data
+    
+        return response()->json($sortedParents);
     }
      
 

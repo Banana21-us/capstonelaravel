@@ -68,6 +68,7 @@ public function getclasssubjects() {
         $levelsAndStrands = DB::table('sections')
             ->select('grade_level', 'strand')
             ->distinct()
+            ->orderBy('grade_level')
             ->get();
 
         $result = [];
