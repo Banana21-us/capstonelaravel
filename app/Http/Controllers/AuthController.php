@@ -8,6 +8,9 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use App\Models\Message;
+use Illuminate\Support\Facades\Validator;
 class AuthController extends Controller
 {
 
@@ -40,7 +43,6 @@ class AuthController extends Controller
     
         return response()->json(['message' => 'Registration successful'], 201);
     }
-    
     public function updatePass(Request $request)
 {
     // Validate incoming request
@@ -165,4 +167,173 @@ class AuthController extends Controller
         ];
         // return 'logout';
     }
+
+    // message
+    public function getMessages(Request $request){
+        $uid = $request->input('uid');
+
+        $latestMessages = DB::table('messages')
+            ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
+            ->groupBy('message_sender');
+    
+        $msg = DB::table('messages')
+            ->leftJoin('students', function ($join) {
+                $join->on('messages.message_sender', '=', 'students.LRN');
+            })
+            ->leftJoin('parent_guardians', function ($join) {
+                $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
+            })
+            ->joinSub($latestMessages, 'latest_messages', function ($join) {
+                $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
+                    ->on('messages.created_at', '=', 'latest_messages.max_created_at');
+            })
+            ->whereNotIn('messages.message_sender', function ($query) {
+                $query->select('admin_id')->from('admins');
+            })
+            ->where('messages.message_reciever', '=', $uid)
+            ->select('messages.*', 
+                DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ",LEFT(students.mname, 1), ". ", students.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ",LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
+                END as sender_name'))
+            ->orderBy('messages.created_at', 'desc')
+            ->get();
+        
+        return $msg;
+    }
+    public function getConvo(Request $request, $sid){
+        $uid = $request->input('uid');
+
+        $convo = DB::table('messages')
+            ->leftJoin('students', function ($join) {
+                $join->on('messages.message_sender', '=', 'students.LRN');
+            })
+            ->leftJoin('admins', function ($join) {
+                $join->on('messages.message_sender', '=', 'admins.admin_id');
+            })
+            ->leftJoin('parent_guardians', function ($join) {
+                $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
+            })
+            ->where(function ($query) use ($uid) {
+                $query->where('messages.message_sender', $uid) // Sent messages
+                      ->orWhere('messages.message_reciever', $uid); // Received replies
+            })     
+            ->where(function ($query) use ($sid) {
+                $query->where('messages.message_sender', $sid) // Sent messages
+                      ->orWhere('messages.message_reciever', $sid); // Received replies
+            })        
+            ->select('messages.*', 
+                DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ",LEFT(students.mname, 1), ". ", students.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ",LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
+                END as sender_name'),
+                DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname)
+                END as me'))
+            ->get();
+            if ($convo->isEmpty()) {
+                return response()->json(['message' => 'No messages found'], 404);
+            }
+
+        return $convo;
+    }
+    public function sendMessage(Request $request){
+        $validator = Validator::make($request->all(), [
+            'message_sender' => 'required',
+            'message_reciever' => 'required',
+            'message' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json($validator->errors(), 422);
+        }
+
+        $message = Message::create([
+            'message_sender' => $request->input('message_sender'), // Ensure the key matches your database column
+            'message_reciever' => $request->input('message_reciever'), // Ensure the key matches your database column
+            'message' => $request->input('message'), // Ensure the key matches your database column
+            'message_date' => now(),
+        ]);
+
+        return response()->json($message, 201);
+    }
+    public function getrecepeints(Request $request)
+    {
+     $students = DB::table('students')
+     ->select(DB::raw('LRN AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
+    $guardians = DB::table('parent_guardians')
+        ->select(DB::raw('guardian_id AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
+    $admins = DB::table('admins')
+        ->select(DB::raw('admin_id AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
+    $recipients = $students->unionAll($guardians)->unionAll($admins)->get();
+    return response()->json($recipients);
+    }
+
+    public function composenewmessage(Request $request)
+    {
+        // Validate the incoming request data
+        $validated = $request->validate([
+            'message' => 'required|string|max:255',
+            'message_date' => 'required|date',
+            'message_sender' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    $existsInStudents = DB::table('students')->where('LRN', $value)->exists();
+                    $existsInGuardians = DB::table('parent_guardians')->where('guardian_id', $value)->exists();
+                    $existsInAdmins = DB::table('admins')->where('admin_id', $value)->exists();
+    
+                    if (!$existsInStudents && !$existsInGuardians && !$existsInAdmins) {
+                        $fail("The selected $attribute is invalid.");
+                    }
+                },
+            ],
+            'message_reciever' => [
+                'required',
+                function ($attribute, $value, $fail) {
+                    $existsInStudents = DB::table('students')->where('LRN', $value)->exists();
+                    $existsInGuardians = DB::table('parent_guardians')->where('guardian_id', $value)->exists();
+                    $existsInAdmins = DB::table('admins')->where('admin_id', $value)->exists();
+    
+                    if (!$existsInStudents && !$existsInGuardians && !$existsInAdmins) {
+                        $fail("The selected $attribute is invalid.");
+                    }
+                },
+            ],
+        ]);
+    
+        try {
+            // Create a new message
+            $message = new Message();
+            $message->message_sender = $validated['message_sender'];
+            $message->message_reciever = $validated['message_reciever'];
+            $message->message = $validated['message'];
+            $message->message_date = $validated['message_date'];
+            $message->save();
+    
+            // Log a success message
+            Log::info('Message successfully composed', [
+                'message_id' => $message->message_id,
+                'sender' => $validated['message_sender'],
+                'receiver' => $validated['message_reciever'],
+                'message_content' => $validated['message'],
+                'message_date' => $validated['message_date'],
+            ]);
+    
+            // Return the updated list of messages
+            return $this->getMessages($request);  // Call getMessages method to return updated conversation
+        } catch (\Exception $e) {
+            // Log any error that occurs
+            Log::error('Error sending message: ' . $e->getMessage());
+    
+            // Return an error response
+            return response()->json(['error' => 'Failed to send message'], 500);
+        }
+    }
+    
+
+
+
+
+    
+
 }

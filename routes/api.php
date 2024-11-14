@@ -68,6 +68,12 @@ Route::post('/login',[AuthController::class,'login']);
     
         abort(404);
     });
+
+    Route::get('/getMessages', [AuthController::class, 'getMessages']);
+    Route::get('/getConvo/{sid}', [AuthController::class, 'getConvo']);
+    Route::post('/sendMessage', [AuthController::class, 'sendMessage']);
+    Route::get('/getrecepeints', [AuthController::class, 'getrecepeints']);
+    Route::post('/composemessage', [AuthController::class, 'composenewmessage']);
 // });
 Route::middleware('auth:sanctum')->post('/logout',[AuthController::class,'logout']);
 

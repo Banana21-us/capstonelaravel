@@ -3,7 +3,7 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
-
+use Illuminate\Support\Facades\DB;
 return new class extends Migration
 {
     /**
@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('admins', function (Blueprint $table) {
-            $table->id(column: 'admin_id');
+            $table->id(column: 'admin_id')->startingValue(1000);;
             $table->string(column: 'fname');
             $table->string(column: 'lname');
             $table->string(column: 'mname');
@@ -23,6 +23,7 @@ return new class extends Migration
             $table->string(column: 'password');
             $table->timestamps();
         });
+       
     }
 
     /**
