@@ -268,12 +268,11 @@ class AuthController extends Controller
     $recipients = $students->unionAll($guardians)->unionAll($admins)->get();
     return response()->json($recipients);
     }
-
     public function composenewmessage(Request $request)
     {
         // Validate the incoming request data
         $validated = $request->validate([
-            'message' => 'required|string|max:255',
+            'message' => 'required|string|max:5000',
             'message_date' => 'required|date',
             'message_sender' => [
                 'required',
