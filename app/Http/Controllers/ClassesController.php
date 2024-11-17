@@ -40,29 +40,29 @@ class ClassesController extends Controller
     
         return response()->json($classes);
     }
-public function getclasssubjects() {
-    $subjects = Subject::all();
-    $structuredSubjects = [];
-    foreach ($subjects as $subject) {
-        $key = "{$subject->grade_level}-{$subject->strand}";
+    public function getclasssubjects() {
+        $subjects = Subject::all();
+        $structuredSubjects = [];
+        foreach ($subjects as $subject) {
+            $key = "{$subject->grade_level}-{$subject->strand}";
 
-        if (!isset($structuredSubjects[$key])) {
-            $structuredSubjects[$key] = [
-                'level' => $subject->grade_level,
-                'strand' => $subject->strand,
-                'subjects' => []
+            if (!isset($structuredSubjects[$key])) {
+                $structuredSubjects[$key] = [
+                    'level' => $subject->grade_level,
+                    'strand' => $subject->strand,
+                    'subjects' => []
+                ];
+            }
+
+            $structuredSubjects[$key]['subjects'][] = [
+                'subject_id' => $subject->subject_id,
+                'subject_name' => $subject->subject_name,
             ];
         }
 
-        $structuredSubjects[$key]['subjects'][] = [
-            'subject_id' => $subject->subject_id,
-            'subject_name' => $subject->subject_name,
-        ];
+        $structuredSubjects = array_values($structuredSubjects);
+        return response()->json($structuredSubjects);
     }
-
-    $structuredSubjects = array_values($structuredSubjects);
-    return response()->json($structuredSubjects);
-}
 
     public function getSection() {
         $levelsAndStrands = DB::table('sections')

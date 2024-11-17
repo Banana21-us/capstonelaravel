@@ -167,7 +167,33 @@ class AuthController extends Controller
         ];
         // return 'logout';
     }
-
+    public function getInquiries(){
+        $latestMessages = DB::table('messages')
+        ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
+        ->groupBy('message_sender');
+    
+    $data = DB::table('messages')
+        ->leftJoin('students', 'messages.message_sender', '=', 'students.LRN')
+        ->leftJoin('admins', 'messages.message_reciever', '=', 'admins.admin_id')
+        ->joinSub($latestMessages, 'latest_messages', function ($join) {
+            $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
+                 ->on('messages.created_at', '=', 'latest_messages.max_created_at');
+        })
+        ->whereNotIn('messages.message_sender', function ($query) {
+            $query->select('admin_id')->from('admins');
+        })
+        ->select(
+            'messages.*', 
+            DB::raw('CONCAT(students.fname, " ",LEFT(students.mname, 1), ". ", students.lname) AS student_name'),
+            DB::raw('CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname) AS admin_name')
+        )
+        ->orderBy('messages.created_at', 'desc') // Ensure the latest messages are on top
+        ->limit(5) // Limit the results to the top 5
+        ->get();
+    
+    return $data;
+    
+    }
     // message
     public function getMessages(Request $request){
         $uid = $request->input('uid');

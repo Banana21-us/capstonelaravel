@@ -17,7 +17,7 @@ Route::post('/login',[AuthController::class,'login']);
 // Route::middleware(['online'])->group(function (){
     Route::apiResource('classes',ClassesController::class);
     Route::apiResource('dashboard',EnrollmentController::class);
-
+    Route::get('/getInquiries', [AuthController::class, 'getInquiries']);
 
     Route::apiResource('classes',ClassesController::class);
     Route::get('classes-list', [ClassesController::class, 'getclasslist']);
