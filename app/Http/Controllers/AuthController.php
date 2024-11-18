@@ -267,7 +267,7 @@ class AuthController extends Controller
         $validator = Validator::make($request->all(), [
             'message_sender' => 'required',
             'message_reciever' => 'required',
-            'message' => 'required|string',
+            'message' => 'required|string|max:5000',
         ]);
 
         if ($validator->fails()) {
