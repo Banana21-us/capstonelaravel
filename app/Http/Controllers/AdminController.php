@@ -16,16 +16,11 @@ class AdminController extends Controller
      */
     public function index()
 {
-    // Fetch all admin records from the database
-    $admins = Admin::all();
-
-    // Sort the admins by last name (lname) in a case-insensitive manner
-    $sortedAdmins = $admins->sortBy(function ($admin) {
-        return strtolower($admin->lname); // Convert lname to lowercase for case-insensitive sorting
-    })->values();
-
-    // Return the sorted list of admins as a JSON response
-    return response()->json($sortedAdmins);
+    // $admins = Admin::all();
+    // $sortedAdmins = $admins->sortBy(function ($admin) {
+    //     return strtolower($admin->lname);
+    // })->values();
+    // return response()->json($sortedAdmins);
 }
 
     /**
@@ -33,18 +28,18 @@ class AdminController extends Controller
      */
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
-            'fname' => 'required|string|max:255',
-            'mname' => 'required|string|max:12',
-            'lname' => 'required|string|max:255',
-            'role' => 'required|string|max:255',
-            'address' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'password' => 'required|string|min:8|max:255'
-        ]);
+        // $validatedData = $request->validate([
+        //     'fname' => 'required|string|max:255',
+        //     'mname' => 'required|string|max:12',
+        //     'lname' => 'required|string|max:255',
+        //     'role' => 'required|string|max:255',
+        //     'address' => 'required|string|max:255',
+        //     'email' => 'required|email|max:255',
+        //     'password' => 'required|string|min:8|max:255'
+        // ]);
 
-        $admin = Admin::create($validatedData);
-        return response()->json($admin, 201);
+        // $admin = Admin::create($validatedData);
+        // return response()->json($admin, 201);
     }
 
     /**
@@ -62,37 +57,37 @@ class AdminController extends Controller
     public function update(Request $request, Admin $admin)
     {
         // Log the incoming request data
-        Log::info('Updating admin record', [
-            'admin_id' => $admin->id,
-            'request_data' => $request->all(),
-        ]);
+        // Log::info('Updating admin record', [
+        //     'admin_id' => $admin->id,
+        //     'request_data' => $request->all(),
+        // ]);
     
-        // Validate the incoming request data
-        $validatedData = $request->validate([
-            'fname' => 'sometimes|required|string|max:255',
-            'mname' => 'sometimes|required|string|max:12',
-            'lname' => 'sometimes|required|string|max:255',
-            'address' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|max:255',
-        ]);
+        // // Validate the incoming request data
+        // $validatedData = $request->validate([
+        //     'fname' => 'sometimes|required|string|max:255',
+        //     'mname' => 'sometimes|required|string|max:12',
+        //     'lname' => 'sometimes|required|string|max:255',
+        //     'address' => 'sometimes|required|string|max:255',
+        //     'email' => 'sometimes|required|email|max:255',
+        // ]);
     
-        // Log the validated data
-        Log::info('Validated data for admin update', [
-            'admin_id' => $admin->id,
-            'validated_data' => $validatedData,
-        ]);
+        // // Log the validated data
+        // Log::info('Validated data for admin update', [
+        //     'admin_id' => $admin->id,
+        //     'validated_data' => $validatedData,
+        // ]);
     
-        // Update the admin instance with validated data
-        $admin->update($validatedData);
+        // // Update the admin instance with validated data
+        // $admin->update($validatedData);
     
-        // Log successful update
-        Log::info('Admin record updated successfully', [
-            'admin_id' => $admin->id,
-            'updated_data' => $admin,
-        ]);
+        // // Log successful update
+        // Log::info('Admin record updated successfully', [
+        //     'admin_id' => $admin->id,
+        //     'updated_data' => $admin,
+        // ]);
     
-        // Return a JSON response with the updated admin data
-        return response()->json($admin, 200);
+        // // Return a JSON response with the updated admin data
+        // return response()->json($admin, 200);
     }
 
     /**
@@ -100,17 +95,17 @@ class AdminController extends Controller
      */
     public function destroy($admin)
     {
-        try {
-            $admin = Admin::find($admin);
+        // try {
+        //     $admin = Admin::find($admin);
 
-            if ($admin) {
-                $admin->delete();
-                return response()->json(['message' => 'Deleted successfully!'], 200);
-            }
+        //     if ($admin) {
+        //         $admin->delete();
+        //         return response()->json(['message' => 'Deleted successfully!'], 200);
+        //     }
 
-            return response()->json(['message' => 'teacher not found.'], 404);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Error deleting teacher: ' . $e->getMessage()], 500);
-        }
+        //     return response()->json(['message' => 'teacher not found.'], 404);
+        // } catch (\Exception $e) {
+        //     return response()->json(['message' => 'Error deleting teacher: ' . $e->getMessage()], 500);
+        // }
     }
 }

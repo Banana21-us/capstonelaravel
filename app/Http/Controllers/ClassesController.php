@@ -152,9 +152,6 @@ class ClassesController extends Controller
              return response()->json(['message' => 'Failed to create class.', 'error' => $e->getMessage()], 500);
          }
      }
-
-    
-
     /**
      * Display the specified resource.
      */
@@ -168,7 +165,7 @@ class ClassesController extends Controller
      */
    
 
-        public function update(Request $request, $id)
+    public function update(Request $request, $id)
         {  
             $classes = Classes::find($id);
             DB::beginTransaction();
@@ -216,14 +213,7 @@ class ClassesController extends Controller
                 DB::rollBack();
                 return response()->json(['message' => 'Update failed', 'error' => $e->getMessage()], 500);
             }
-        }
-     
-
-     
-
-     
-
-
+    }
     /**
      * Remove the specified resource from storage.
      */
@@ -251,6 +241,6 @@ class ClassesController extends Controller
         Log::error('Error deleting class:', ['error' => $e->getMessage()]);
         return response()->json(['message' => 'Failed to delete class.', 'error' => $e->getMessage()], 500);
     }
-}
+    }
 
 }

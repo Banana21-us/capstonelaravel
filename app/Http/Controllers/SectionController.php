@@ -137,9 +137,6 @@ class SectionController extends Controller
         $section->delete();
         return response()->json(['message' => 'section deleted successfully.'], 200);
     }
-
-
-
     public function destroy($gradeLevel, $strand)
     {
         // Delete sections associated with the specified grade level and strand

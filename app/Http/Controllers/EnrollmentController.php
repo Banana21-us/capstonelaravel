@@ -14,24 +14,24 @@ class EnrollmentController extends Controller
      */
     public function index()
     {
-        // Count the number of enrollments grouped by grade_level and strand
-        $enrollmentCounts = DB::table('enrollments')
-            ->select('grade_level', 'strand', DB::raw('count(*) as total'))
-            ->groupBy('grade_level', 'strand')
-            ->orderBy('grade_level')
-            ->get();
+        // // Count the number of enrollments grouped by grade_level and strand
+        // $enrollmentCounts = DB::table('enrollments')
+        //     ->select('grade_level', 'strand', DB::raw('count(*) as total'))
+        //     ->groupBy('grade_level', 'strand')
+        //     ->orderBy('grade_level')
+        //     ->get();
 
-        // Calculate total counts
-        $totalEnrollments = DB::table('enrollments')->count();
-        $juniorHighTotal = DB::table('enrollments')->whereIn('grade_level', ['7', '8', '9', '10'])->count();
-        $seniorHighTotal = DB::table('enrollments')->whereIn('grade_level', ['11', '12'])->count();
+        // // Calculate total counts
+        // $totalEnrollments = DB::table('enrollments')->count();
+        // $juniorHighTotal = DB::table('enrollments')->whereIn('grade_level', ['7', '8', '9', '10'])->count();
+        // $seniorHighTotal = DB::table('enrollments')->whereIn('grade_level', ['11', '12'])->count();
 
-        return response()->json([
-            'enrollmentCounts' => $enrollmentCounts,
-            'totalEnrollments' => $totalEnrollments,
-            'juniorHighTotal' => $juniorHighTotal,
-            'seniorHighTotal' => $seniorHighTotal,
-        ]);
+        // return response()->json([
+        //     'enrollmentCounts' => $enrollmentCounts,
+        //     'totalEnrollments' => $totalEnrollments,
+        //     'juniorHighTotal' => $juniorHighTotal,
+        //     'seniorHighTotal' => $seniorHighTotal,
+        // ]);
     }
 
     /**

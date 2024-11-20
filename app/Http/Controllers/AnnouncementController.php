@@ -14,8 +14,8 @@ class AnnouncementController extends Controller
      */
     public function index()
     {
-        $announcements = Announcement::all();
-        return $announcements;
+        // $announcements = Announcement::all();
+        // return $announcements;
     }
 
     /**
@@ -23,15 +23,15 @@ class AnnouncementController extends Controller
      */
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
-            'title' => 'required|string|max:255',
-            'announcement' => 'required|string|max:5000',
-            'admin_id' => 'required|exists:admins,admin_id',
-            'class_id' => 'required|exists:classes,class_id',
-        ]);
+        // $validatedData = $request->validate([
+        //     'title' => 'required|string|max:255',
+        //     'announcement' => 'required|string|max:5000',
+        //     'admin_id' => 'required|exists:admins,admin_id',
+        //     'class_id' => 'required|exists:classes,class_id',
+        // ]);
 
-        $announcement = Announcement::create($validatedData);
-        return response()->json($announcement, 201);
+        // $announcement = Announcement::create($validatedData);
+        // return response()->json($announcement, 201);
     }
 
     /**
@@ -39,7 +39,7 @@ class AnnouncementController extends Controller
      */
     public function show(Announcement $announcement)
     {
-        return response()->json($announcement);
+        // return response()->json($announcement);
     }
 
     /**
@@ -47,30 +47,30 @@ class AnnouncementController extends Controller
      */
     public function update(Request $request, Announcement $announcement)
     {
-        $formField = $request->validate([
-            'title' => 'required|max:255',
-            'announcement' => 'required'
-        ]);
+        // $formField = $request->validate([
+        //     'title' => 'required|max:255',
+        //     'announcement' => 'required'
+        // ]);
 
-        $announcement->update($formField);
-        return $announcement;
+        // $announcement->update($formField);
+        // return $announcement;
     }
     /**
      * Remove the specified resource from storage.
      */
     public function destroy($ancmnt_id)
     {
-        try {
-            $announcement = Announcement::find($ancmnt_id);
+        // try {
+        //     $announcement = Announcement::find($ancmnt_id);
 
-            if ($announcement) {
-                $announcement->delete();
-                return response()->json(['message' => 'Deleted successfully!'], 200);
-            }
+        //     if ($announcement) {
+        //         $announcement->delete();
+        //         return response()->json(['message' => 'Deleted successfully!'], 200);
+        //     }
 
-            return response()->json(['message' => 'Announcement not found.'], 404);
-        } catch (\Exception $e) {
-            return response()->json(['message' => 'Error deleting announcement: ' . $e->getMessage()], 500);
-        }
+        //     return response()->json(['message' => 'Announcement not found.'], 404);
+        // } catch (\Exception $e) {
+        //     return response()->json(['message' => 'Error deleting announcement: ' . $e->getMessage()], 500);
+        // }
     }
 }

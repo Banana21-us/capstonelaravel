@@ -11,52 +11,75 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\ParentGuardianController;
 use App\Http\Controllers\StudentController;
+use App\Models\Announcement;
 
 Route::post('/login',[AuthController::class,'login']);
 
 // Route::middleware(['online'])->group(function (){
-    Route::apiResource('classes',ClassesController::class);
-    Route::apiResource('dashboard',EnrollmentController::class);
+    
+    // dashboard
+    Route::get('dashboard',[AuthController::class,'chart']);
     Route::get('/getInquiries', [AuthController::class, 'getInquiries']);
 
-    Route::apiResource('classes',ClassesController::class);
-    Route::get('classes-list', [ClassesController::class, 'getclasslist']);
-    Route::get('/class/sections', [ClassesController::class, 'getSection']);
-    Route::get('/class-subjects', [ClassesController::class, 'getclasssubjects']);
-    Route::delete('/classes/{classes}', [ClassesController::class, 'destroy']);
-    Route::patch('/classes/{class}', [ClassesController::class, 'update']);
 
 
-    Route::apiResource('admins',AdminController::class);
-    Route::apiResource('announcements',AnnouncementController::class);
-    Route::apiResource('student', StudentController::class);
-    Route::apiResource('parentguardian',ParentGuardianController::class);
+    // classes
+    Route::get('classes-list', [AuthController::class, 'getclasslist']);
+    Route::get('/class-subjects', [AuthController::class, 'getclasssubjects']);
+    Route::get('/class/sections', [AuthController::class, 'getSection']);
+    Route::post('/storeClass',[AuthController::class,'storeClass']);
+    Route::put('/classes/{class}', [AuthController::class, 'updateClass']);
+    Route::delete('/classes/{classes}', [AuthController::class, 'destroyClass']);
+  
 
 
-    Route::apiResource('sections',SectionController::class);
-    Route::delete('/sections/{gradeLevel}/{strand}', [SectionController::class, 'destroy']);
-    Route::put('/sections/{gradeLevel}/{strand}', [SectionController::class, 'update']);
-    Route::delete('/section/removesection/{id}', [SectionController::class, 'removeSection']);
+    // teacher
+    Route::get('/getAdminsteacher', [AuthController::class, 'getAdminsteacher']);
+    Route::put('/admins/{admin}', [AuthController::class, 'updateAdminsteacher']);
+    Route::delete('admins/{admin_id}', [AuthController::class, 'destroyAdminsteacher']);
+    Route::post('/register',[AuthController::class,'register']); //can be admin registration as whole 
 
 
-    Route::apiResource('subjects',SubjectController::class);
-    Route::put('/subjects/{gradeLevel}/{strand}', [SubjectController::class, 'update']);
-    Route::delete('/subjects/{gradeLevel}/{strand}', [SubjectController::class, 'destroy']);
-    Route::delete('/subject/removesubject/{id}', [SubjectController::class, 'removesubject']);
+
+    // Announcement
+    Route::get('announcements',[AuthController::class,'getAnnouncements']);
+    Route::get('/announcements/{announcement}', [AuthController::class, 'showtoupdate']);
+    Route::post('/postAnnouncements',[AuthController::class,'postAnnouncements']);
+    Route::put('/updateAnnouncements/{announcement}', [AuthController::class, 'updateAnnouncements']);
+    Route::delete('destroyannouncements/{ancmnt_id}', [AuthController::class, 'destroyAnnouncements']);
 
 
-    Route::patch('/parentguardian/{email}', [ParentGuardianController::class, 'update']);
-    Route::delete('/parentguardian/{email}', [ParentGuardianController::class, 'destroy']);
-    Route::delete('parentguardian/{email}/remove', [ParentGuardianController::class, 'remove']);
-    Route::get('/parentguardianfilter', [ParentGuardianController::class, 'getfilteredParents']);
 
-    Route::get('/announcements/{announcement}', [AnnouncementController::class, 'show']);
-    Route::delete('announcements/{ancmnt_id}', 'AnnouncementController@destroy')->name('announcement.destroy');
-    
-    Route::delete('admins/{admin_id}', 'AdminController@destroy')->name('admins.destroy');
-    Route::put('/admins/{admin}', [AdminController::class, 'update']);
-    
-    Route::post('/register',[AuthController::class,'register']);
+    // parent/guardian
+    Route::get('student', [AuthController::class,'showStudent']); 
+    Route::get('/parentguardian', [AuthController::class, 'getParent']);
+    Route::post('/postparentguardian',[AuthController::class,'storeParent']);
+    Route::patch('/parentguardian/{email}', [AuthController::class, 'updateParent']);
+    Route::delete('/parentguardian/{email}', [AuthController::class, 'destroyParent']);
+    Route::delete('parentguardian/{email}/remove', [AuthController::class, 'removeParentStudent']);
+
+
+
+    // Section
+    Route::get('sections', [AuthController::class,'getindexSection']); 
+    Route::post('/postsections',[AuthController::class,'storeSection']);
+    Route::put('/sections/{gradeLevel}/{strand}', [AuthController::class, 'updateSection']);
+    Route::delete('/section/removesection/{id}', [AuthController::class, 'removeSection']);
+    Route::delete('/sections/{gradeLevel}/{strand}', [AuthController::class, 'destroySection']);
+
+
+
+
+    // Subject
+    Route::get('subjects', [AuthController::class,'getindexSubject']); 
+    Route::post('/postsubjects',[AuthController::class,'storeSubject']);
+    Route::put('/subjects/{gradeLevel}/{strand}', [AuthController::class, 'updateSubject']);
+    Route::delete('/subjects/{gradeLevel}/{strand}', [AuthController::class, 'destroySubject']);
+    Route::delete('/subject/removesubject/{id}', [AuthController::class, 'removesubject']);
+
+
+   
+    // Account 
     Route::put('/update-password', [AuthController::class, 'updatePass']);
     Route::post('/upload-image', [AuthController::class, 'uploadImage']);
     Route::get('assets/adminPic/{filename}', function ($filename) {
@@ -69,6 +92,9 @@ Route::post('/login',[AuthController::class,'login']);
         abort(404);
     });
 
+
+
+    // Message 
     Route::get('/getMessages', [AuthController::class, 'getMessages']);
     Route::get('/getConvo/{sid}', [AuthController::class, 'getConvo']);
     Route::post('/sendMessage', [AuthController::class, 'sendMessage']);
