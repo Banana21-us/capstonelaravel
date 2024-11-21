@@ -16,9 +16,10 @@ return new class extends Migration
             $table->unsignedBigInteger('admin_id'); 
             $table->unsignedBigInteger('section_id');
             $table->unsignedBigInteger('subject_id');
-            $table->integer('room');
+            $table->string('room');
             $table->string('time'); 
             $table->string('schedule');
+            $table->integer('semester')->nullable();
             $table->timestamps();
         });
     }

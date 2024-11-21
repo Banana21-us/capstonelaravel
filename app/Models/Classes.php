@@ -17,7 +17,8 @@ class Classes extends Model
         'subject_id',
         'room',
         'time',
-        'schedule'
+        'schedule',
+        'semester'
     ];
     public function section()
     {

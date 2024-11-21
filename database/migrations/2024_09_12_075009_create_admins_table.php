@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('admins', function (Blueprint $table) {
-            $table->id(column: 'admin_id')->startingValue(1000);;
+            $table->id(column: 'admin_id');
             $table->string(column: 'fname');
             $table->string(column: 'lname');
-            $table->string(column: 'mname');
+            $table->string(column: 'mname')->nullable();
             $table->string(column: 'role');
             $table->string(column: 'address');
             $table->string(column: 'admin_pic')->nullable();

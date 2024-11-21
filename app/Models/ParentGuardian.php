@@ -20,6 +20,7 @@ class ParentGuardian extends Model
         'mname',
         'address',
         'relationship',
+        'parent_pic',
         'contact_no',
         'email',
         'password'

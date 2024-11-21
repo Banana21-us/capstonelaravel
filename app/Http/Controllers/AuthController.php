@@ -27,7 +27,7 @@ class AuthController extends Controller
         $formField = $request->validate([
             "fname" => "required|max:255",
             "lname" => "required|max:255",
-            "mname" => "required|max:255",
+            "mname" => "nullable|string|max:255",
             "role" => "required|max:255",
             "address" => "required|max:255",
             "email" => "required|email|unique:admins",
@@ -79,26 +79,6 @@ class AuthController extends Controller
 
 
     }
-    // public function login(Request $request){
-    //     $request->validate([
-    //         'email' => 'required|email|exists:admins',
-    //         'password' => 'required'
-    //     ]);
-
-    //     $admin = Admin::where('email', $request->email)->first();
-    //     if(!$admin || !Hash::check($request->password,$admin->password)){
-    //         return [
-    //             'message' => 'The provided credentials are incorrect'
-    //         ];
-    //     }
-
-    //     $token = $admin->createToken($admin->fname);
-
-    //     return [
-    //         'admin' => $admin,
-    //         'token' => $token->plainTextToken
-    //     ];
-    // }
     public function logout(Request $request){
         $request->user()->tokens()->delete();
         return [
@@ -114,28 +94,33 @@ class AuthController extends Controller
         $latestMessages = DB::table('messages')
         ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
         ->groupBy('message_sender');
+
+        $data = DB::table('messages')
+            ->leftJoin('students', function ($join) {
+                $join->on('messages.message_sender', '=', 'students.LRN');
+            })
+            ->leftJoin('parent_guardians', function ($join) {
+                $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
+            })
+            ->leftJoin('admins', 'messages.message_reciever', '=', 'admins.admin_id')
+            ->joinSub($latestMessages, 'latest_messages', function ($join) {
+                $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
+                     ->on('messages.created_at', '=', 'latest_messages.max_created_at');
+            })
+            ->whereNotIn('messages.message_sender', function ($query) {
+                $query->select('admin_id')->from('admins');
+            })
+            // ->join('admins as sender_admin', 'messages.message_sender', '=', 'sender_admin.admin_id')
+            // ->join('students as reciever', 'messages.message_reciever', '=', 'reciever.LRN')
+            ->select('messages.*', 
+                    DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
+                    END as sender_name'),
+                    DB::raw('CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname)as admin_name'))
+            ->get();
     
-    $data = DB::table('messages')
-        ->leftJoin('students', 'messages.message_sender', '=', 'students.LRN')
-        ->leftJoin('admins', 'messages.message_reciever', '=', 'admins.admin_id')
-        ->joinSub($latestMessages, 'latest_messages', function ($join) {
-            $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
-                 ->on('messages.created_at', '=', 'latest_messages.max_created_at');
-        })
-        ->whereNotIn('messages.message_sender', function ($query) {
-            $query->select('admin_id')->from('admins');
-        })
-        ->select(
-            'messages.*', 
-            DB::raw('CONCAT(students.fname, " ",LEFT(students.mname, 1), ". ", students.lname) AS student_name'),
-            DB::raw('CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname) AS admin_name')
-        )
-        ->orderBy('messages.created_at', 'desc') // Ensure the latest messages are on top
-        ->limit(5) // Limit the results to the top 5
-        ->get();
-    
-    return $data;
-    
+        return $data;
     }
     public function chart()
     {
@@ -170,6 +155,7 @@ class AuthController extends Controller
             ->select(
                 'c.class_id',  // Include class_id
                 'c.room',
+                'c.semester',
                 's.grade_level as level',
                 's.strand',
                 's.section_name',
@@ -237,61 +223,64 @@ class AuthController extends Controller
         return response()->json($result);
     }
     public function storeClass(Request $request)
-     {
-         DB::beginTransaction();
-         try {
-             // Validation code...
-             $validatedData = $request->validate([
-                 'section_id' => 'required|exists:sections,section_id',
-                 'room' => 'required|integer|max:999',
-                 'forms' => 'required|array',
-                 'forms.*.teacher' => 'required|exists:admins,admin_id',
-                 'forms.*.subject_id' => 'required|exists:subjects,subject_id',
-                 'forms.*.time' => 'required|string|max:255',
-                 'forms.*.selectedDays' => 'required|array',
-                 'forms.*.selectedDays.*' => 'required|string|max:255',
-             ]);
-     
-             // Log the validated data to ensure all fields are present
-             Log::info('Creating classes with validated data:', [
-                 'section_id' => $validatedData['section_id'],
-                 'room' => $validatedData['room'],
-                 'forms_count' => count($validatedData['forms']),
-             ]);
-     
-             foreach ($validatedData['forms'] as $form) {
-                 // Check each form data before insertion
-                 Log::info('Inserting class for teacher:', [
-                     'admin_id' => $form['teacher'],
-                     'section_id' => $validatedData['section_id'],
-                     'room' => $validatedData['room'],
-                     'time' => $form['time'],
-                     'schedule' => implode(',', $form['selectedDays']),
-                     'subject_id' => $form['subject_id'],
-                 ]);
-     
-                 Classes::create([
-                     'admin_id' => $form['teacher'],
-                     'section_id' => $validatedData['section_id'],
-                     'room' => $validatedData['room'],
-                     'time' => $form['time'],
-                     'schedule' => implode(',', $form['selectedDays']),
-                     'subject_id' => $form['subject_id'], // Ensure this is set
-                 ]);
-             }
-     
-             DB::commit(); // Commit the transaction
-             return response()->json(['message' => 'Classes successfully created'], 201);
-         } catch (ValidationException $e) {
-            DB::rollBack(); // Rollback on validation errors
-            Log::error('Validation failed:', $e->errors());
-            Log::info('Received request data:', $request->all());
-            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-        }catch (\Exception $e) {
-             DB::rollBack(); // Rollback on other exceptions
-             Log::error('An error occurred while creating the class:', ['error' => $e->getMessage()]);
-             return response()->json(['message' => 'Failed to create class.', 'error' => $e->getMessage()], 500);
-         }
+    {
+    DB::beginTransaction();
+    try {
+        // Validation code...
+        $validatedData = $request->validate([
+            'section_id' => 'required|exists:sections,section_id',
+            'room' => 'required|string|max:255',
+            'semester' => 'nullable|integer', // Add validation for semester
+            'forms' => 'required|array',
+            'forms.*.teacher' => 'required|exists:admins,admin_id',
+            'forms.*.subject_id' => 'required|exists:subjects,subject_id',
+            'forms.*.time' => 'required|string|max:255',
+            'forms.*.selectedDays' => 'required|array',
+            'forms.*.selectedDays.*' => 'required|string|max:255',
+        ]);
+
+        // Log the validated data
+        Log::info('Creating classes with validated data:', [
+            'section_id' => $validatedData['section_id'],
+            'room' => $validatedData['room'],
+            'semester' => $validatedData['semester'], // Log semester
+            'forms_count' => count($validatedData['forms']),
+        ]);
+
+        foreach ($validatedData['forms'] as $form) {
+            Log::info('Inserting class for teacher:', [
+                'admin_id' => $form['teacher'],
+                'section_id' => $validatedData['section_id'],
+                'room' => $validatedData['room'],
+                'time' => $form['time'],
+                'schedule' => implode(',', $form['selectedDays']),
+                'subject_id' => $form['subject_id'],
+                'semester' => $validatedData['semester'], // Include semester in logs
+            ]);
+
+            Classes::create([
+                'admin_id' => $form['teacher'],
+                'section_id' => $validatedData['section_id'],
+                'room' => $validatedData['room'],
+                'time' => $form['time'],
+                'schedule' => implode(',', $form['selectedDays']),
+                'subject_id' => $form['subject_id'],
+                'semester' => $validatedData['semester'], // Set semester
+            ]);
+        }
+
+        DB::commit(); // Commit the transaction
+        return response()->json(['message' => 'Classes successfully created'], 201);
+    } catch (ValidationException $e) {
+        DB::rollBack(); // Rollback on validation errors
+        Log::error('Validation failed:', $e->errors());
+        Log::info('Received request data:', $request->all());
+        return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+    } catch (\Exception $e) {
+        DB::rollBack(); // Rollback on other exceptions
+        Log::error('An error occurred while creating the class:', ['error' => $e->getMessage()]);
+        return response()->json(['message' => 'Failed to create class.', 'error' => $e->getMessage()], 500);
+    }
     }
     public function updateClass(Request $request, $id){  
             $classes = Classes::find($id);
@@ -752,42 +741,46 @@ class AuthController extends Controller
 
 
     // message
-    public function getMessages(Request $request){
-        $uid = $request->input('uid');
+    public function getStudentParents() {
+        // Fetch students
+        $students = DB::table('students')
+            ->select('students.LRN', DB::raw('CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname) as account_name'))
+            ->get()
+            ->map(function ($student) {
+                return [
+                    'account_id' => $student->LRN,
+                    'account_name' => $student->account_name,
+                    'type' => 'student',
+                ];
+            });
 
+        // Fetch parents
+        $parents = DB::table('parent_guardians')
+            ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname) as account_name'))
+            ->get()
+            ->map(function ($parent) {
+                return [
+                    'account_id' => $parent->guardian_id,
+                    'account_name' => $parent->account_name,
+                    'type' => 'parent',
+                ];
+            });
+
+        // Combine both collections into one
+        $accounts = $students->merge($parents);
+
+        return response()->json($accounts);
+    }   
+    public function getMessages(Request $request) {
+        $uid = $request->input('uid');
+    
+        // Subquery to get the latest message for each sender
         $latestMessages = DB::table('messages')
             ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
             ->groupBy('message_sender');
     
+        // Main query to get messages
         $msg = DB::table('messages')
-            ->leftJoin('students', function ($join) {
-                $join->on('messages.message_sender', '=', 'students.LRN');
-            })
-            ->leftJoin('parent_guardians', function ($join) {
-                $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
-            })
-            ->joinSub($latestMessages, 'latest_messages', function ($join) {
-                $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
-                    ->on('messages.created_at', '=', 'latest_messages.max_created_at');
-            })
-            ->whereNotIn('messages.message_sender', function ($query) {
-                $query->select('admin_id')->from('admins');
-            })
-            ->where('messages.message_reciever', '=', $uid)
-            ->select('messages.*', 
-                DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ",LEFT(students.mname, 1), ". ", students.lname)
-                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ",LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
-                END as sender_name'))
-            ->orderBy('messages.created_at', 'desc')
-            ->get();
-        
-        return $msg;
-    }
-    public function getConvo(Request $request, $sid){
-        $uid = $request->input('uid');
-
-        $convo = DB::table('messages')
             ->leftJoin('students', function ($join) {
                 $join->on('messages.message_sender', '=', 'students.LRN');
             })
@@ -797,28 +790,98 @@ class AuthController extends Controller
             ->leftJoin('parent_guardians', function ($join) {
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
             })
-            ->where(function ($query) use ($uid) {
-                $query->where('messages.message_sender', $uid) // Sent messages
-                      ->orWhere('messages.message_reciever', $uid); // Received replies
-            })     
-            ->where(function ($query) use ($sid) {
-                $query->where('messages.message_sender', $sid) // Sent messages
-                      ->orWhere('messages.message_reciever', $sid); // Received replies
-            })        
+            ->joinSub($latestMessages, 'latest_messages', function ($join) {
+                $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
+                    ->on('messages.created_at', '=', 'latest_messages.max_created_at');
+            })
+            ->where('messages.message_reciever', '=', $uid) // Filter by receiver
             ->select('messages.*', 
                 DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ",LEFT(students.mname, 1), ". ", students.lname)
-                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ",LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
-                END as sender_name'),
-                DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname)
-                END as me'))
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
+                    WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
+                END as sender_name'))
+            ->orderBy('messages.created_at', 'desc')
             ->get();
-            if ($convo->isEmpty()) {
-                return response()->json(['message' => 'No messages found'], 404);
+        
+        return $msg;
+        
+    }
+    public function getConvo(Request $request, $sid) {
+        // Initialize the response variable
+        $user = null;
+    
+        // Check if the $sid corresponds to a student
+        $student = DB::table('students')
+            ->where('students.LRN', $sid)
+            ->select('students.LRN', DB::raw('CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname) as account_name'))
+            ->first(); // Use first() to get a single record
+    
+        if ($student) {
+            // If a student is found, format the response
+            $user = [
+                'account_id' => $student->LRN,
+                'account_name' => $student->account_name,
+                'type' => 'student',
+            ];
+        } else {
+            // If no student found, check for a parent
+            $parent = DB::table('parent_guardians')
+                ->where('parent_guardians.guardian_id', $sid)
+                ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname) as account_name'))
+                ->first(); // Use first() to get a single record
+    
+            if ($parent) {
+                // If a parent is found, format the response
+                $user = [
+                    'account_id' => $parent->guardian_id,
+                    'account_name' => $parent->account_name,
+                    'type' => 'parent',
+                ];
             }
-
-        return $convo;
+        }
+    
+        // Initialize the conversation variable
+        $convo = [];
+    
+        // If user is found, fetch the conversation
+        if ($user) {
+            $uid = $request->input('uid');
+    
+            $convo = DB::table('messages')
+                ->leftJoin('students', function ($join) {
+                    $join->on('messages.message_sender', '=', 'students.LRN');
+                })
+                ->leftJoin('admins', function ($join) {
+                    $join->on('messages.message_sender', '=', 'admins.admin_id');
+                })
+                ->leftJoin('parent_guardians', function ($join) {
+                    $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
+                })
+                ->where(function ($query) use ($uid) {
+                    $query->where('messages.message_sender', $uid) // Sent messages
+                          ->orWhere('messages.message_reciever', $uid); // Received replies
+                })     
+                ->where(function ($query) use ($sid) {
+                    $query->where('messages.message_sender', $sid) // Sent messages
+                          ->orWhere('messages.message_reciever', $sid); // Received replies
+                })        
+                ->select('messages.*', 
+                    DB::raw('CASE 
+                        WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
+                        WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
+                    END as sender_name'),
+                    DB::raw('CASE 
+                        WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname)
+                    END as me'))
+                ->get();
+        }
+    
+        // Return the user information and conversation or a not found message
+        return response()->json([
+            'user' => $user ?: ['message' => 'User  not found'],
+            'conversation' => $convo,
+        ]);
     }
     public function sendMessage(Request $request){
         $validator = Validator::make($request->all(), [
@@ -971,6 +1034,18 @@ class AuthController extends Controller
 
 
     // parent/guardian
+    public function showaddstudent($lrn)
+    {
+        $student = Student::where('LRN', $lrn)
+                    ->orderBy('lname', 'asc') // Order by last name in ascending order
+                    ->first();
+    
+        if (!$student) {
+            return response()->json(['message' => 'Student not found.'], 404);
+        }
+    
+        return response()->json($student, 200);
+    }
     public function showStudent()
     {
         $student = Student::orderBy('lname', 'asc')->get();
@@ -1014,10 +1089,11 @@ class AuthController extends Controller
         'LRN' => 'required|array',
         'LRN.*' => 'exists:students,LRN',
         'fname' => 'required|string|max:255',
-        'mname' => 'required|string|max:12',
+        'mname' => 'nullable|string|max:255',
         'lname' => 'required|string|max:255',
         'address' => 'required|string|max:255',
         'relationship' => 'required|string|max:255',
+        'parent_pic' => 'nullable|string|max:255',
         'contact_no' => 'required|string|max:255',
         'email' => 'required|email|max:255|unique:parent_guardians,email',
         'password' => 'required|string|min:8|max:255'

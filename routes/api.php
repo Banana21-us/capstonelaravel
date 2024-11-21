@@ -51,6 +51,7 @@ Route::post('/login',[AuthController::class,'login']);
 
 
     // parent/guardian
+    Route::get('/student/{lrn}', [AuthController::class, 'showaddstudent']);
     Route::get('student', [AuthController::class,'showStudent']); 
     Route::get('/parentguardian', [AuthController::class, 'getParent']);
     Route::post('/postparentguardian',[AuthController::class,'storeParent']);
@@ -95,6 +96,7 @@ Route::post('/login',[AuthController::class,'login']);
 
 
     // Message 
+    Route::get('/getStudentParents', [AuthController::class, 'getStudentParents']);
     Route::get('/getMessages', [AuthController::class, 'getMessages']);
     Route::get('/getConvo/{sid}', [AuthController::class, 'getConvo']);
     Route::post('/sendMessage', [AuthController::class, 'sendMessage']);
