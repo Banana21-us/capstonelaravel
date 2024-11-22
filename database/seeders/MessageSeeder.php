@@ -15,15 +15,15 @@ class MessageSeeder extends Seeder
     {
         DB::table('messages')->insert([
             [
-                'message_reciever' => 1,
-                'message_sender' => 10002,
+                'message_reciever' => 2,
+                'message_sender' => 10004,
                 'message' => 'Hello! How are you?',
                 'message_date' => Carbon::now()->format('Y-m-d'),
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ],
             [
-                'message_reciever' => 1,
+                'message_reciever' => 2,
                 'message_sender' => 400238150125 ,
                 'message' => 'Im good, thank you! How about you?',
                 'message_date' => Carbon::now()->format('Y-m-d'),
@@ -31,8 +31,8 @@ class MessageSeeder extends Seeder
                 'updated_at' => Carbon::now(),
             ],
             [
-                'message_reciever' => 1,
-                'message_sender' => 10004,
+                'message_reciever' => 2,
+                'message_sender' => 10005,
                 'message' => 'Meeting at 3 PM. Dont forget.',
                 'message_date' => Carbon::now()->subDay()->format('Y-m-d'),
                 'created_at' => Carbon::now(),

@@ -13,7 +13,8 @@ class ParentGuardianSeeder extends Seeder
     public function run(): void
     {
         $parentGuardians = [
-            [
+            [   
+                'guardian_id' => 10001,
                 'LRN' => 400238150125,
                 'fname' => 'Carlos',
                 'lname' => 'Garcia',
@@ -25,6 +26,7 @@ class ParentGuardianSeeder extends Seeder
                 'password' => bcrypt('password123'), // Use bcrypt for password hashing
             ],
             [
+                'guardian_id' => 10002,
                 'LRN' => 400238150126,
                 'fname' => 'Maria',
                 'lname' => 'Dela Cruz',
@@ -36,6 +38,7 @@ class ParentGuardianSeeder extends Seeder
                 'password' => bcrypt('password456'),
             ],
             [
+                'guardian_id' => 10003,
                 'LRN' => 400238150127,
                 'fname' => 'Anita',
                 'lname' => 'Santos',
@@ -47,6 +50,7 @@ class ParentGuardianSeeder extends Seeder
                 'password' => bcrypt('password789'),
             ],
             [
+                'guardian_id' => 10004,
                 'LRN' => 400238150128,
                 'fname' => 'Luisang',
                 'lname' => 'Alvarez',
@@ -59,6 +63,7 @@ class ParentGuardianSeeder extends Seeder
             ],
             [
                 // Another example
+                'guardian_id' => 10005,
                 'LRN' => 400238150129,
                 'fname' => "Clarica",
                 "lname" => "Mendoza",

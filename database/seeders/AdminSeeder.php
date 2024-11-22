@@ -418,7 +418,7 @@ class AdminSeeder extends Seeder
                 'role' => 'DSF',
                 'address' => 'Pangasinan',
                 'admin_pic' => null,
-                'email' => 'Russ.dc@gmail.com',
+                'email' => 'jane.dv@gmail.com',
                 'password' => Hash::make('password123'),
                 'created_at' => now(),
                 'updated_at' => now(),

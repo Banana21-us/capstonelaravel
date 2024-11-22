@@ -702,14 +702,20 @@ class AuthController extends Controller
 
     return response()->json(['message' => 'User details updated successfully']);
     }
-    public function uploadImage(Request $request)
+
+public function uploadImage(Request $request)
 {
+    // Validate the request
     $request->validate([
         'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
         'admin_id' => 'required|exists:admins,admin_id'
     ]);
 
     try {
+        // Log the start of the upload process
+        Log::info('Image upload initiated for admin ID: ' . $request->input('admin_id'));
+
+        // Find the admin
         $admin = Admin::findOrFail($request->input('admin_id'));
         $image = $request->file('image');
         $imageName = time() . '.' . $image->getClientOriginalExtension();
@@ -718,24 +724,32 @@ class AuthController extends Controller
         // Ensure the directory exists
         if (!is_dir($destinationPath)) {
             mkdir($destinationPath, 0755, true);
+            Log::info('Created directory for admin images at: ' . $destinationPath);
         }
 
         // Delete the old image if exists
         if ($admin->admin_pic && file_exists($path = $destinationPath . '/' . $admin->admin_pic)) {
             unlink($path);
+            Log::info('Deleted old image for admin ID: ' . $request->input('admin_id'));
         }
 
         // Move the new image and update the admin profile
         $image->move($destinationPath, $imageName);
         $admin->update(['admin_pic' => $imageName]);
 
+        Log::info('Image uploaded successfully for admin ID: ' . $request->input('admin_id') . ', Image Name: ' . $imageName);
+
         return response()->json([
             'message' => 'Image uploaded successfully.',
             'image_url' => url('assets/adminPic/' . $imageName)
         ]);
     } catch (\Exception $e) {
+        // Log the error message
+        Log::error('Image upload failed for admin ID: ' . $request->input('admin_id') . '. Error: ' . $e->getMessage());
+        
         return response()->json(['error' => 'Image upload failed.'], 500);
     }
+
     }
     
 

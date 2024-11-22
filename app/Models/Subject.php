@@ -11,7 +11,7 @@ class Subject extends Model
     protected $table = 'subjects';
     protected $primaryKey = 'subject_id';
     public $incrementing = false; 
-    protected $fillable = ['subject_id','subject_name', 'grade_level', 'strand'];
+    protected $fillable = ['subject_id','subject_name', 'grade_level', 'strand','image'];
     public function classes()
     {
         return $this->hasMany(Classes::class);

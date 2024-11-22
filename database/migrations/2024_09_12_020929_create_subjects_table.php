@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string(column: 'subject_name');
             $table->integer(column: 'grade_level');
             $table->string(column: 'strand');
+            $table->string(column: 'image')->nullable();
             $table->timestamps();
         });
     }
