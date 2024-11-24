@@ -15,29 +15,54 @@ class MessageSeeder extends Seeder
     {
         DB::table('messages')->insert([
             [
-                'message_reciever' => 2,
+                'message_reciever' => 30,
                 'message_sender' => 10004,
-                'message' => 'Hello! How are you?',
+                'message' => 'hello this is sample?',
                 'message_date' => Carbon::now()->format('Y-m-d'),
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
+                'created_at' => '2024-11-22 11:07:25', // Literal timestamp
+                'updated_at' => '2024-11-22 11:07:25', // Literal timestamp
             ],
-            [
-                'message_reciever' => 2,
-                'message_sender' => 400238150125 ,
-                'message' => 'Im good, thank you! How about you?',
-                'message_date' => Carbon::now()->format('Y-m-d'),
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-            ],
-            [
-                'message_reciever' => 2,
-                'message_sender' => 10005,
-                'message' => 'Meeting at 3 PM. Dont forget.',
-                'message_date' => Carbon::now()->subDay()->format('Y-m-d'),
-                'created_at' => Carbon::now(),
-                'updated_at' => Carbon::now(),
-            ],
+            // [
+            //     'message_reciever' => 1,
+            //     'message_sender' => 400238150125,
+            //     'message' => 'RUSS',
+            //     'message_date' => Carbon::now()->format('Y-m-d'),
+            //     'created_at' => '2024-11-22 11:07:26',
+            //     'updated_at' => '2024-11-22 11:07:26',
+            // ],
+            // [
+            //     'message_reciever' => 1,
+            //     'message_sender' => 10005,
+            //     'message' => 'RUSS.',
+            //     'message_date' => Carbon::now()->format('Y-m-d'),
+            //     'created_at' => '2024-11-22 11:07:28',
+            //     'updated_at' => '2024-11-22 11:07:28',
+            // ],
+            // [
+            //     'message_reciever' => 2,
+            //     'message_sender' => 10001,
+            //     'message' => 'WILL',
+            //     'message_date' => Carbon::now()->format('Y-m-d'),
+            //     'created_at' => '2024-11-22 11:07:30', // Literal timestamp
+            //     'updated_at' => '2024-11-22 11:07:30', // Literal timestamp
+            // ],
+            // [
+            //     'message_reciever' => 2,
+            //     'message_sender' => 400238150126,
+            //     'message' => 'WILL',
+            //     'message_date' => Carbon::now()->format('Y-m-d'),
+            //     'created_at' => '2024-11-22 11:07:31',
+            //     'updated_at' => '2024-11-22 11:07:31',
+            // ],
+            // [
+            //     'message_reciever' => 2,
+            //     'message_sender' => 10002,
+            //     'message' => 'WILL',
+            //     'message_date' => Carbon::now()->format('Y-m-d'),
+            //     'created_at' => '2024-11-22 11:07:32',
+            //     'updated_at' => '2024-11-22 11:07:32',
+            // ],
         ]);
+        
     }
 }

@@ -702,20 +702,14 @@ class AuthController extends Controller
 
     return response()->json(['message' => 'User details updated successfully']);
     }
-
-public function uploadImage(Request $request)
+    public function uploadImage(Request $request)
 {
-    // Validate the request
     $request->validate([
         'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
         'admin_id' => 'required|exists:admins,admin_id'
     ]);
 
     try {
-        // Log the start of the upload process
-        Log::info('Image upload initiated for admin ID: ' . $request->input('admin_id'));
-
-        // Find the admin
         $admin = Admin::findOrFail($request->input('admin_id'));
         $image = $request->file('image');
         $imageName = time() . '.' . $image->getClientOriginalExtension();
@@ -724,32 +718,24 @@ public function uploadImage(Request $request)
         // Ensure the directory exists
         if (!is_dir($destinationPath)) {
             mkdir($destinationPath, 0755, true);
-            Log::info('Created directory for admin images at: ' . $destinationPath);
         }
 
         // Delete the old image if exists
         if ($admin->admin_pic && file_exists($path = $destinationPath . '/' . $admin->admin_pic)) {
             unlink($path);
-            Log::info('Deleted old image for admin ID: ' . $request->input('admin_id'));
         }
 
         // Move the new image and update the admin profile
         $image->move($destinationPath, $imageName);
         $admin->update(['admin_pic' => $imageName]);
 
-        Log::info('Image uploaded successfully for admin ID: ' . $request->input('admin_id') . ', Image Name: ' . $imageName);
-
         return response()->json([
             'message' => 'Image uploaded successfully.',
             'image_url' => url('assets/adminPic/' . $imageName)
         ]);
     } catch (\Exception $e) {
-        // Log the error message
-        Log::error('Image upload failed for admin ID: ' . $request->input('admin_id') . '. Error: ' . $e->getMessage());
-        
         return response()->json(['error' => 'Image upload failed.'], 500);
     }
-
     }
     
 
@@ -863,32 +849,31 @@ public function uploadImage(Request $request)
             $uid = $request->input('uid');
     
             $convo = DB::table('messages')
-                ->leftJoin('students', function ($join) {
-                    $join->on('messages.message_sender', '=', 'students.LRN');
-                })
-                ->leftJoin('admins', function ($join) {
-                    $join->on('messages.message_sender', '=', 'admins.admin_id');
-                })
-                ->leftJoin('parent_guardians', function ($join) {
-                    $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
-                })
-                ->where(function ($query) use ($uid) {
-                    $query->where('messages.message_sender', $uid) // Sent messages
-                          ->orWhere('messages.message_reciever', $uid); // Received replies
-                })     
-                ->where(function ($query) use ($sid) {
-                    $query->where('messages.message_sender', $sid) // Sent messages
-                          ->orWhere('messages.message_reciever', $sid); // Received replies
-                })        
-                ->select('messages.*', 
-                    DB::raw('CASE 
-                        WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
-                        WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
-                    END as sender_name'),
-                    DB::raw('CASE 
-                        WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname)
-                    END as me'))
-                ->get();
+            ->leftJoin('students', 'messages.message_sender', '=', 'students.LRN')
+            ->leftJoin('admins', 'messages.message_sender', '=', 'admins.admin_id')
+            ->leftJoin('parent_guardians', 'messages.message_sender', '=', 'parent_guardians.guardian_id')
+            ->where(function ($query) use ($uid) {
+                $query->where('messages.message_sender', $uid)
+                    ->orWhere('messages.message_reciever', $uid);
+            })
+            ->where(function ($query) use ($sid) {
+                $query->where('messages.message_sender', $sid)
+                    ->orWhere('messages.message_reciever', $sid);
+            })
+            ->selectRaw("
+                messages.*,
+                CASE 
+                    WHEN messages.message_sender = ? THEN 'me' 
+                    ELSE NULL 
+                END as me,
+                CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, ' ', LEFT(students.mname, 1), '. ', students.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, ' ', LEFT(parent_guardians.mname, 1), '. ', parent_guardians.lname)
+                    ELSE NULL 
+                END as sender_name
+            ", [$uid])
+            ->get();
+
         }
     
         // Return the user information and conversation or a not found message
@@ -1005,7 +990,7 @@ public function uploadImage(Request $request)
             'admin_id' => 'required|exists:admins,admin_id',
             'class_id' => 'required|exists:classes,class_id',
         ]);
-
+        // date_announced
         $announcement = Announcement::create($validatedData);
         return response()->json($announcement, 201);
     }
