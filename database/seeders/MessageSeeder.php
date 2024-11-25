@@ -15,9 +15,9 @@ class MessageSeeder extends Seeder
     {
         DB::table('messages')->insert([
             [
-                'message_reciever' => 30,
+                'message_reciever' => 33,
                 'message_sender' => 10004,
-                'message' => 'hello this is sample?',
+                'message' => 'hello im luisang?',
                 'message_date' => Carbon::now()->format('Y-m-d'),
                 'created_at' => '2024-11-22 11:07:25', // Literal timestamp
                 'updated_at' => '2024-11-22 11:07:25', // Literal timestamp

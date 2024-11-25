@@ -16,7 +16,7 @@ return new class extends Migration
             $table->unsignedBigInteger('LRN'); 
             $table->string(column: 'fname');
             $table->string(column: 'lname');
-            $table->string(column: 'mname');
+            $table->string(column: 'mname')->nullable();
             $table->string(column: 'address');
             $table->string(column: 'relationship');
             $table->string(column: 'parent_pic')->nullable();

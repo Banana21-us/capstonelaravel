@@ -79,13 +79,36 @@ class AuthController extends Controller
 
 
     }
-    public function logout(Request $request){
+
+public function logout(Request $request)
+{
+    // Log the incoming request
+    Log::info('Logout request received', [
+        'headers' => $request->headers->all(),
+        'user' => $request->user(),
+    ]);
+
+    // Check if user exists
+    if ($request->user()) {
         $request->user()->tokens()->delete();
+
+        // Log successful token deletion
+        Log::info('User tokens deleted', [
+            'user_id' => $request->user()->id,
+        ]);
+
         return [
-            'message'=>'You are logged out'
+            'message' => 'You are logged out',
         ];
-        // return 'logout';
+    } else {
+        Log::warning('Logout request received without an authenticated user.');
+
+        return response()->json([
+            'message' => 'Unauthenticated',
+        ], 401);
     }
+}
+
 
 
 
@@ -118,7 +141,8 @@ class AuthController extends Controller
                     WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
                     END as sender_name'),
                     DB::raw('CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname)as admin_name'))
-            ->get();
+                    ->orderBy('messages.created_at', 'desc')        
+                    ->get();
     
         return $data;
     }
@@ -168,12 +192,17 @@ class AuthController extends Controller
                 'c.section_id',
                 'c.admin_id'
             )
+            // Sort by grade level: Junior classes first (7-10), Senior classes (11-12)
             ->orderBy('s.grade_level')
-            ->orderByRaw("FIELD(s.strand,'-', 'STEM', 'ABM', 'HUMMS') DESC")
+            // Ensure 'STEM', 'ABM', 'HUMMS' are sorted correctly, adjusting if necessary
+            ->orderByRaw("FIELD(s.strand, 'STEM', 'ABM', 'HUMMS', '-') DESC")
+            // Sort by semester (1st before 2nd for senior classes)
+            ->orderBy('c.semester', 'asc') // Assuming '1' is 1st semester, '2' is 2nd semester
             ->get();
     
         return response()->json($classes);
     }
+    
     public function getclasssubjects() {
         $subjects = Subject::all();
         $structuredSubjects = [];
@@ -622,7 +651,7 @@ class AuthController extends Controller
         // Validate the incoming request data
         $validatedData = $request->validate([
             'fname' => 'sometimes|required|string|max:255',
-            'mname' => 'sometimes|required|string|max:12',
+            'mname' => 'sometimes|nullable|string|max:12',
             'lname' => 'sometimes|required|string|max:255',
             'address' => 'sometimes|required|string|max:255',
             'email' => 'sometimes|required|email|max:255',
@@ -904,15 +933,26 @@ class AuthController extends Controller
     }
     public function getrecepeints(Request $request)
     {
-     $students = DB::table('students')
-     ->select(DB::raw('LRN AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
-    $guardians = DB::table('parent_guardians')
-        ->select(DB::raw('guardian_id AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
-    $admins = DB::table('admins')
-        ->select(DB::raw('admin_id AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
-    $recipients = $students->unionAll($guardians)->unionAll($admins)->get();
-    return response()->json($recipients);
+        // Query for students
+        $students = DB::table('students')
+            ->select(DB::raw('LRN AS receiver_id, CONCAT(fname, " ", lname) AS receiver_name'));
+
+        // Query for guardians, using MAX() for non-grouped columns
+        $guardians = DB::table('parent_guardians')
+            ->select(DB::raw('
+                MAX(guardian_id) AS receiver_id, 
+                CONCAT(MAX(fname), " ", MAX(lname)) AS receiver_name
+            '))
+            ->groupBy('email'); // Group by email to ensure distinct records
+
+        // Combine both queries and ensure distinct records for receiver_id
+        $recipients = $students->unionAll($guardians)->distinct()->get();
+
+        // Return the combined list of recipients as JSON
+        return response()->json($recipients);
     }
+
+    
     public function composenewmessage(Request $request)
     {
         // Validate the incoming request data
@@ -1082,73 +1122,123 @@ class AuthController extends Controller
     
         return response()->json($sortedParents);
     }
+
     public function storeParent(Request $request)
-{
-    $validatedData = $request->validate([
-        'LRN' => 'required|array',
-        'LRN.*' => 'exists:students,LRN',
-        'fname' => 'required|string|max:255',
-        'mname' => 'nullable|string|max:255',
-        'lname' => 'required|string|max:255',
-        'address' => 'required|string|max:255',
-        'relationship' => 'required|string|max:255',
-        'parent_pic' => 'nullable|string|max:255',
-        'contact_no' => 'required|string|max:255',
-        'email' => 'required|email|max:255|unique:parent_guardians,email',
-        'password' => 'required|string|min:8|max:255'
-    ]);
+    {
+        // Log incoming request data for debugging
+        Log::info('Incoming request to store parent/guardian:', $request->all());
 
-    $existingGuardian = ParentGuardian::where('fname', $validatedData['fname'])
-                                       ->where('lname', $validatedData['lname'])
-                                       ->where('contact_no', $validatedData['contact_no'])
-                                       ->first();
+        // Validate incoming data
+        $validatedData = $request->validate([
+            'LRN' => 'required|array',
+            'LRN.*' => 'exists:students,LRN',
+            'fname' => 'required|string|max:255',
+            'mname' => 'nullable|string|max:255',
+            'lname' => 'required|string|max:255',
+            'address' => 'required|string|max:255',
+            'relationship' => 'required|string|max:255',
+            'parent_pic' => 'nullable|string|max:255',
+            'contact_no' => 'required|string|max:255',
+            'email' => 'required|email|max:255|unique:parent_guardians,email',
+            'password' => 'required|string|min:8|max:255'
+        ]);
 
-    if ($existingGuardian) {
-        return response()->json(['message' => 'Guardian already exists.'], 409);
-    }
+        // Log the validated data
+        Log::info('Validated parent/guardian data:', $validatedData);
 
-    // Create new ParentGuardian record
-    $parents = [];
-    foreach ($validatedData['LRN'] as $l) {
-        $parentData = array_merge($validatedData, ['LRN' => $l]);
-        $parents[] = ParentGuardian::create($parentData);
-    }
+        // Check for an existing guardian with the same fname, lname, and contact_no
+        $existingGuardian = ParentGuardian::where('fname', $validatedData['fname'])
+                                        ->where('lname', $validatedData['lname'])
+                                        ->where('contact_no', $validatedData['contact_no'])
+                                        ->first();
 
-    return response()->json($parents, 201);
+        if ($existingGuardian) {
+            // Log the existing guardian data
+            Log::warning('Guardian already exists:', $existingGuardian->toArray());
+            
+            return response()->json(['message' => 'Guardian already exists.'], 409);
+        }
+
+        // Log that no existing guardian was found
+        Log::info('No existing guardian found. Proceeding with creation.');
+
+        // Create new ParentGuardian record
+        $parents = [];
+        foreach ($validatedData['LRN'] as $l) {
+            $parentData = array_merge($validatedData, ['LRN' => $l]);
+            $parents[] = ParentGuardian::create($parentData);
+        }
+
+        // Log the created parent/guardian records
+        Log::info('Created new parent/guardian records:', $parents);
+
+        return response()->json($parents, 201);
     }
     public function updateParent(Request $request, $email)
-     {
-         $validatedData = $request->validate([
-             'LRN' => 'required|array',
-             'LRN.*' => 'exists:students,LRN', 
-         ]);
-     
-         $parentGuardians = ParentGuardian::where('email', $email)->get();
-     
-         if ($parentGuardians->isEmpty()) {
-             return response()->json(['message' => 'No Parent/Guardian found with that email.'], 404);
-         }
-    
-         foreach ($parentGuardians as $guardian) {
-             foreach ($validatedData['LRN'] as $l) {
-                 if (!ParentGuardian::where('email', $guardian->email)->where('LRN', $l)->exists()) {
-                     ParentGuardian::create([
-                         'LRN' => $l,
-                         'fname' => $guardian->fname,
-                         'mname' => $guardian->mname,
-                         'lname' => $guardian->lname,
-                         'address' => $guardian->address,
-                         'relationship' => $guardian->relationship,
-                         'contact_no' => $guardian->contact_no,
-                         'email' => $guardian->email,
-                         'password' => $guardian->password
-                     ]);
-                 }
-             }
-         }
-     
-         return response()->json(['message' => 'LRN(s) added successfully.'], 200);
+    {
+        // Log incoming request data for debugging
+        Log::info('Incoming request to update parent/guardian with email: ' . $email, $request->all());
+
+        // Validate the incoming LRN data
+        $validatedData = $request->validate([
+            'LRN' => 'required|array',
+            'LRN.*' => 'exists:students,LRN', // Ensure LRN exists in the students table
+        ]);
+
+        // Log the validated LRN data
+        Log::info('Validated LRN data:', $validatedData);
+
+        // Find parent/guardian by email
+        $parentGuardians = ParentGuardian::where('email', $email)->get();
+
+        // Log if no parent/guardian was found
+        if ($parentGuardians->isEmpty()) {
+            Log::warning('No parent/guardian found with email: ' . $email);
+            return response()->json(['message' => 'No Parent/Guardian found with that email.'], 404);
+        }
+
+        // Log the found parent/guardian records
+        Log::info('Found parent/guardian(s):', $parentGuardians->toArray());
+
+        // Loop through the parent/guardian records
+        foreach ($parentGuardians as $guardian) {
+            // Log the current guardian being processed
+            Log::info('Processing guardian:', $guardian->toArray());
+
+            // Loop through the LRN data
+            foreach ($validatedData['LRN'] as $l) {
+                // Log the LRN being processed for this guardian
+                Log::info('Processing LRN: ' . $l);
+
+                // Check if the LRN already exists for this guardian
+                if (!ParentGuardian::where('email', $guardian->email)->where('LRN', $l)->exists()) {
+                    // Log that the LRN does not exist and will be created
+                    Log::info('Creating new record for guardian with email: ' . $guardian->email . ' and LRN: ' . $l);
+
+                    // Create new ParentGuardian record
+                    ParentGuardian::create([
+                        'LRN' => $l,
+                        'fname' => $guardian->fname,
+                        'mname' => $guardian->mname,
+                        'lname' => $guardian->lname,
+                        'address' => $guardian->address,
+                        'relationship' => $guardian->relationship,
+                        'contact_no' => $guardian->contact_no,
+                        'email' => $guardian->email,
+                        'password' => $guardian->password
+                    ]);
+                } else {
+                    // Log if the LRN already exists
+                    Log::info('LRN: ' . $l . ' already exists for guardian with email: ' . $guardian->email);
+                }
+            }
+        }
+
+        // Log the successful update and return a response
+        Log::info('LRN(s) added successfully for parent/guardian with email: ' . $email);
+        return response()->json(['message' => 'LRN(s) added successfully.'], 200);
     }
+
     public function removeParentStudent(Request $request, $email) {
         $validatedData = $request->validate([
             'LRN' => 'required|exists:parent_guardians,LRN', 
@@ -1160,7 +1250,7 @@ class AuthController extends Controller
         return response()->json(['deletedCount' => $deleted]);
     }
     public function destroyParent($email)
-{
+    {
     $parentGuardians = ParentGuardian::where('email', $email)->get();
 
     if ($parentGuardians->isEmpty()) {
