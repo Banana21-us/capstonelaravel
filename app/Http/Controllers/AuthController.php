@@ -31,13 +31,14 @@ class AuthController extends Controller
             "role" => "required|max:255",
             "address" => "required|max:255",
             "email" => "required|email|unique:admins",
-            "password" => [
-                "required",
-                "string",
-                "min:8",
-                "max:255",
-                "regex:/^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/"
-            ]
+            'password' => 'required|string|min:8|max:255'
+            // "password" => [
+            //     "required",
+            //     "string",
+            //     "min:8",
+            //     "max:255",
+            //     "regex:/^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]+$/"
+            // ]
         ]);
         
     
@@ -57,67 +58,76 @@ class AuthController extends Controller
         return response()->json(['message' => 'Registration successful'], 201);
     }
     public function login(Request $request)
-    {
-        $request->validate([
-            "email"=>"required|email|exists:admins",
-            "password"=>"required"
-        ]);
-        $admin = Admin::where('email',$request->email)->first();
-        if(!$admin|| !Hash::check($request->password,$admin->password)){
-            return [
-                "message"=>"The provider credentials are incorrect"
-            ];
-        }
-        $token = $admin->createToken($admin->fname);
-        // $token = $admin->createToken($admin->fname)->plainTextToken; 
-
-        return [
-            'admin' => $admin,
-            'token' => $token->plainTextToken,
-            'id'=> $admin->admin_id
-        ];
-
-
-    }
-
-public function logout(Request $request)
 {
-    // Log the incoming request
-    Log::info('Logout request received', [
-        'headers' => $request->headers->all(),
-        'user' => $request->user(),
+    $request->validate([
+        "email" => "required|email|exists:admins,email",
+        "password" => "required"
     ]);
 
-    // Check if user exists
-    if ($request->user()) {
-        $request->user()->tokens()->delete();
+    $admin = Admin::where('email', $request->email)->first();
 
-        // Log successful token deletion
-        Log::info('User tokens deleted', [
-            'user_id' => $request->user()->id,
-        ]);
-
-        return [
-            'message' => 'You are logged out',
-        ];
-    } else {
-        Log::warning('Logout request received without an authenticated user.');
-
+    // Check if admin exists and validate password
+    if (!$admin || !Hash::check($request->password, $admin->password)) {
         return response()->json([
-            'message' => 'Unauthenticated',
+            "message" => "The provider credentials are incorrect"
         ], 401);
     }
-}
+
+    // Check if the role is 'Principal'
+    if ($admin->role !== 'Principal') {
+        return response()->json([
+            "message" => "Unauthorized: You do not have access to this resource."
+        ], 403);
+    }
+
+    $token = $admin->createToken($admin->fname);
+
+    return response()->json([
+        'admin' => $admin,
+        'token' => $token->plainTextToken,
+        'id' => $admin->admin_id
+    ]);
+    }
+    public function logout(Request $request)
+    {
+        // Log the incoming request
+        Log::info('Logout request received', [
+            'headers' => $request->headers->all(),
+            'user' => $request->user(),
+        ]);
+
+        // Check if user exists
+        if ($request->user()) {
+            $request->user()->tokens()->delete();
+
+            // Log successful token deletion
+            Log::info('User tokens deleted', [
+                'user_id' => $request->user()->id,
+            ]);
+
+            return [
+                'message' => 'You are logged out',
+            ];
+        } else {
+            Log::warning('Logout request received without an authenticated user.');
+
+            return response()->json([
+                'message' => 'Unauthenticated',
+            ], 401);
+        }
+    }
 
 
 
 
     // dashboard
-    public function getInquiries(){
+    public function getInquiries() {
+        // Subquery to get the latest message for each message_sender
         $latestMessages = DB::table('messages')
-        ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
-        ->groupBy('message_sender');
-
+            ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
+            ->groupBy('message_sender');
+    
+        // Main query to get the latest messages along with sender details
         $data = DB::table('messages')
             ->leftJoin('students', function ($join) {
                 $join->on('messages.message_sender', '=', 'students.LRN');
@@ -126,47 +136,56 @@ public function logout(Request $request)
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
             })
             ->leftJoin('admins', 'messages.message_reciever', '=', 'admins.admin_id')
-            ->joinSub($latestMessages, 'latest_messages', function ($join) {
-                $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
-                     ->on('messages.created_at', '=', 'latest_messages.max_created_at');
-            })
             ->whereNotIn('messages.message_sender', function ($query) {
                 $query->select('admin_id')->from('admins');
             })
-            // ->join('admins as sender_admin', 'messages.message_sender', '=', 'sender_admin.admin_id')
-            // ->join('students as reciever', 'messages.message_reciever', '=', 'reciever.LRN')
-            ->select('messages.*', 
-                    DB::raw('CASE 
+            // You can add filtering here if needed based on message_reciever
+            ->select(
+                'messages.*',
+                DB::raw('CASE 
                     WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
                     WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
-                    END as sender_name'),
-                    DB::raw('CONCAT(admins.fname, " ",LEFT(admins.mname, 1), ". ", admins.lname)as admin_name'))
-                    ->orderBy('messages.created_at', 'desc')        
-                    ->get();
+                    ELSE "User not found"
+                END as sender_name'),
+                DB::raw('CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname) as admin_name')
+            )
+            ->orderBy('messages.created_at', 'desc')        
+            ->get();
     
-        return $data;
+        return response()->json($data);
     }
     public function chart()
     {
-        // Count the number of enrollments grouped by grade_level and strand
+        // Count the number of enrollments for the school year 2024-2025, grouped by grade_level and strand
         $enrollmentCounts = DB::table('enrollments')
             ->select('grade_level', 'strand', DB::raw('count(*) as total'))
+            ->where('school_year', '2024-2025') // Filter for the specific school year
             ->groupBy('grade_level', 'strand')
             ->orderBy('grade_level')
             ->get();
-
-        // Calculate total counts
-        $totalEnrollments = DB::table('enrollments')->count();
-        $juniorHighTotal = DB::table('enrollments')->whereIn('grade_level', ['7', '8', '9', '10'])->count();
-        $seniorHighTotal = DB::table('enrollments')->whereIn('grade_level', ['11', '12'])->count();
-
+    
+        // Calculate total counts for the school year 2024-2025
+        $totalEnrollments = DB::table('enrollments')
+            ->where('school_year', '2024-2025') // Filter for the specific school year
+            ->count();
+        
+        $juniorHighTotal = DB::table('enrollments')
+            ->where('school_year', '2024-2025') // Filter for the specific school year
+            ->whereIn('grade_level', ['7', '8', '9', '10'])
+            ->count();
+        
+        $seniorHighTotal = DB::table('enrollments')
+            ->where('school_year', '2024-2025') // Filter for the specific school year
+            ->whereIn('grade_level', ['11', '12'])
+            ->count();
+    
         return response()->json([
             'enrollmentCounts' => $enrollmentCounts,
             'totalEnrollments' => $totalEnrollments,
             'juniorHighTotal' => $juniorHighTotal,
             'seniorHighTotal' => $seniorHighTotal,
         ]);
-    }
+    }   
 
 
 
@@ -177,7 +196,7 @@ public function logout(Request $request)
             ->join('admins as a', 'c.admin_id', '=', 'a.admin_id')
             ->join('subjects as sub', 'c.subject_id', '=', 'sub.subject_id')
             ->select(
-                'c.class_id',  // Include class_id
+                'c.class_id',
                 'c.room',
                 'c.semester',
                 's.grade_level as level',
@@ -192,17 +211,14 @@ public function logout(Request $request)
                 'c.section_id',
                 'c.admin_id'
             )
-            // Sort by grade level: Junior classes first (7-10), Senior classes (11-12)
-            ->orderBy('s.grade_level')
-            // Ensure 'STEM', 'ABM', 'HUMMS' are sorted correctly, adjusting if necessary
+            ->whereNotNull('s.grade_level') // Ensuring no NULL values
+            ->orderByRaw("CAST(s.grade_level AS UNSIGNED)") // Casting for proper sorting
             ->orderByRaw("FIELD(s.strand, 'STEM', 'ABM', 'HUMMS', '-') DESC")
-            // Sort by semester (1st before 2nd for senior classes)
-            ->orderBy('c.semester', 'asc') // Assuming '1' is 1st semester, '2' is 2nd semester
+            ->orderBy('c.semester', 'asc')
             ->get();
     
         return response()->json($classes);
     }
-    
     public function getclasssubjects() {
         $subjects = Subject::all();
         $structuredSubjects = [];
@@ -227,28 +243,33 @@ public function logout(Request $request)
         return response()->json($structuredSubjects);
     }
     public function getSection() {
+        // Fetch distinct grade levels and strands, ordered by grade level
         $levelsAndStrands = DB::table('sections')
             ->select('grade_level', 'strand')
             ->distinct()
-            ->orderBy('grade_level')
+            ->orderByRaw("FIELD(grade_level, '7', '8', '9', '10', '11', '12')") // Custom order for grade levels
+            ->orderBy('strand') // Optional: Order by strand if needed
             ->get();
-
+    
         $result = [];
-
+    
         foreach ($levelsAndStrands as $entry) {
+            // Fetch sections based on the current grade level and strand
             $sections = DB::table('sections')
                 ->select('section_id', 'section_name', 'grade_level', 'strand')
                 ->where('grade_level', $entry->grade_level)
                 ->where('strand', $entry->strand)
+                ->orderBy('section_name') // Optional: Order sections by name
                 ->get();
-
+    
+            // Build the result array with level, strand, and corresponding sections
             $result[] = [
                 'level' => $entry->grade_level,
                 'strand' => $entry->strand,
                 'sections' => $sections
             ];
         }
-
+    
         return response()->json($result);
     }
     public function storeClass(Request $request)
@@ -782,10 +803,15 @@ public function logout(Request $request)
                     'type' => 'student',
                 ];
             });
-
-        // Fetch parents
+    
+        // Fetch distinct parents by email while retaining the original selection
         $parents = DB::table('parent_guardians')
             ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname) as account_name'))
+            ->whereIn('guardian_id', function($query) {
+                $query->select(DB::raw('MIN(guardian_id)')) // Get the first guardian_id for each email
+                      ->from('parent_guardians')
+                      ->groupBy('email'); // Group by email to ensure distinct entries
+            })
             ->get()
             ->map(function ($parent) {
                 return [
@@ -794,12 +820,12 @@ public function logout(Request $request)
                     'type' => 'parent',
                 ];
             });
-
+    
         // Combine both collections into one
         $accounts = $students->merge($parents);
-
+    
         return response()->json($accounts);
-    }   
+    }
     public function getMessages(Request $request) {
         $uid = $request->input('uid');
     
@@ -819,10 +845,10 @@ public function logout(Request $request)
             ->leftJoin('parent_guardians', function ($join) {
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
             })
-            ->joinSub($latestMessages, 'latest_messages', function ($join) {
-                $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
-                    ->on('messages.created_at', '=', 'latest_messages.max_created_at');
-            })
+            // ->joinSub($latestMessages, 'latest_messages', function ($join) {
+            //     $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
+            //         ->on('messages.created_at', '=', 'latest_messages.max_created_at');
+            // })
             ->where('messages.message_reciever', '=', $uid) // Filter by receiver
             ->select('messages.*', 
                 DB::raw('CASE 
@@ -915,7 +941,7 @@ public function logout(Request $request)
         $validator = Validator::make($request->all(), [
             'message_sender' => 'required',
             'message_reciever' => 'required',
-            'message' => 'required|string|max:5000',
+            'message' => 'required|string|max:10000',
         ]);
 
         if ($validator->fails()) {
@@ -950,9 +976,7 @@ public function logout(Request $request)
 
         // Return the combined list of recipients as JSON
         return response()->json($recipients);
-    }
-
-    
+    } 
     public function composenewmessage(Request $request)
     {
         // Validate the incoming request data
@@ -1018,10 +1042,11 @@ public function logout(Request $request)
 
     // announcements
     public function getAnnouncements()
-    {
-        $announcements = Announcement::all();
-        return $announcements;
-    }
+{
+    // Retrieve announcements where admin_id is 1
+    $announcements = Announcement::where('admin_id', 1)->get();
+    return $announcements;
+}
     public function postAnnouncements(Request $request)
     {
         $validatedData = $request->validate([
@@ -1096,11 +1121,11 @@ public function logout(Request $request)
             ->get()
             ->groupBy('email');
     
-        Log::info('Fetched parent data:', ['parents' => $parents]); // Log the fetched data
+        Log::info('Fetched parent data:', ['parents' => $parents]);
     
         $formattedParents = collect($parents)->map(function ($group) {
-            $lrns = $group->pluck('LRN')->toArray();
-            Log::info('LRNs for group:', ['lrns' => $lrns]); // Log LRNs for each group
+            $lrns = $group->pluck('LRN')->filter()->toArray(); // Filter out null LRN values
+            Log::info('LRNs for group:', ['lrns' => $lrns]);
     
             $students = DB::table('students')->whereIn('LRN', $lrns)->get();
             return [
@@ -1110,15 +1135,15 @@ public function logout(Request $request)
                 'relationship' => $group[0]->relationship,
                 'contact_no' => $group[0]->contact_no,
                 'email' => $group[0]->email,
-                'LRNs' => $lrns, // Ensure this is not empty
-                'students' => $students // Ensure this contains valid data
+                'LRNs' => $lrns, // This can be empty now if all LRNs are null
+                'students' => $students
             ];
         })->values();
     
         // Sort parents by last name (lname)
         $sortedParents = $formattedParents->sortBy('lname')->values();
     
-        Log::info('Sorted parents data:', ['sortedParents' => $sortedParents]); // Log sorted data
+        Log::info('Sorted parents data:', ['sortedParents' => $sortedParents]);
     
         return response()->json($sortedParents);
     }
@@ -1244,10 +1269,13 @@ public function logout(Request $request)
             'LRN' => 'required|exists:parent_guardians,LRN', 
         ]);
     
-        $deleted = ParentGuardian::where('LRN', $validatedData['LRN'])->delete();
-        Log::info('LRN deletion attempt', ['LRN' => $validatedData['LRN'], 'deleted' => $deleted]);
+        // Set the LRN to null instead of deleting the record
+        $updated = ParentGuardian::where('LRN', $validatedData['LRN'])
+            ->update(['LRN' => null]); // Update the LRN to null
     
-        return response()->json(['deletedCount' => $deleted]);
+        Log::info('LRN update attempt', ['LRN' => $validatedData['LRN'], 'updated' => $updated]);
+    
+        return response()->json(['updatedCount' => $updated]);
     }
     public function destroyParent($email)
     {
