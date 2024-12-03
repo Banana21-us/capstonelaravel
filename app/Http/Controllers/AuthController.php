@@ -60,11 +60,12 @@ class AuthController extends Controller
     public function login(Request $request)
 {
     $request->validate([
-        "email" => "required|email|exists:admins,email",
+        "email" => "required|email",
         "password" => "required"
     ]);
 
-    $admin = Admin::where('email', $request->email)->first();
+    // Use a raw query to ensure case-sensitive email check
+    $admin = Admin::whereRaw('BINARY email = ?', [$request->email])->first();
 
     // Check if admin exists and validate password
     if (!$admin || !Hash::check($request->password, $admin->password)) {
@@ -87,7 +88,7 @@ class AuthController extends Controller
         'token' => $token->plainTextToken,
         'id' => $admin->admin_id
     ]);
-    }
+}
     public function logout(Request $request)
     {
         // Log the incoming request
@@ -794,7 +795,17 @@ class AuthController extends Controller
     public function getStudentParents() {
         // Fetch students
         $students = DB::table('students')
-            ->select('students.LRN', DB::raw('CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname) as account_name'))
+        ->select('students.LRN', DB::raw("
+        CONCAT(
+            students.fname, 
+            ' ', 
+            CASE 
+                WHEN students.mname IS NOT NULL AND students.mname != '' THEN CONCAT(LEFT(students.mname, 1), '. ')
+                ELSE ''
+            END,
+            students.lname
+            ) as account_name
+            "))
             ->get()
             ->map(function ($student) {
                 return [
@@ -806,7 +817,7 @@ class AuthController extends Controller
     
         // Fetch distinct parents by email while retaining the original selection
         $parents = DB::table('parent_guardians')
-            ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname) as account_name'))
+            ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ", LEFT(COALESCE(parent_guardians.mname, ""), 1), ". ", parent_guardians.lname) as account_name'))
             ->whereIn('guardian_id', function($query) {
                 $query->select(DB::raw('MIN(guardian_id)')) // Get the first guardian_id for each email
                       ->from('parent_guardians')
@@ -845,22 +856,22 @@ class AuthController extends Controller
             ->leftJoin('parent_guardians', function ($join) {
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
             })
-            // ->joinSub($latestMessages, 'latest_messages', function ($join) {
-            //     $join->on('messages.message_sender', '=', 'latest_messages.message_sender')
-            //         ->on('messages.created_at', '=', 'latest_messages.max_created_at');
-            // })
             ->where('messages.message_reciever', '=', $uid) // Filter by receiver
+            ->where(function ($query) {
+                $query->whereNotNull('students.LRN')
+                      ->orWhereNotNull('admins.admin_id')
+                      ->orWhereNotNull('parent_guardians.guardian_id');
+            }) // Ensure sender exists in one of the tables
             ->select('messages.*', 
                 DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
-                    WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname)
-                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(COALESCE(students.mname, ""), 1), ". ", students.lname)
+                    WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ", LEFT(COALESCE(admins.mname, ""), 1), ". ", admins.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(COALESCE(parent_guardians.mname, ""), 1), ". ", parent_guardians.lname)
                 END as sender_name'))
             ->orderBy('messages.created_at', 'desc')
             ->get();
-        
+    
         return $msg;
-        
     }
     public function getConvo(Request $request, $sid) {
         // Initialize the response variable
@@ -869,7 +880,17 @@ class AuthController extends Controller
         // Check if the $sid corresponds to a student
         $student = DB::table('students')
             ->where('students.LRN', $sid)
-            ->select('students.LRN', DB::raw('CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname) as account_name'))
+            ->select('students.LRN', DB::raw("
+            CONCAT(
+                students.fname, 
+                ' ', 
+                CASE 
+                    WHEN students.mname IS NOT NULL AND students.mname != '' THEN CONCAT(LEFT(students.mname, 1), '. ')
+                    ELSE ''
+                END,
+                students.lname
+                ) as account_name
+                "))
             ->first(); // Use first() to get a single record
     
         if ($student) {
@@ -883,7 +904,7 @@ class AuthController extends Controller
             // If no student found, check for a parent
             $parent = DB::table('parent_guardians')
                 ->where('parent_guardians.guardian_id', $sid)
-                ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname) as account_name'))
+                ->select('parent_guardians.guardian_id', DB::raw('CONCAT(parent_guardians.fname, " ",  LEFT(COALESCE(parent_guardians.mname, ""), 1), ". ", parent_guardians.lname) as account_name'))
                 ->first(); // Use first() to get a single record
     
             if ($parent) {
@@ -916,18 +937,34 @@ class AuthController extends Controller
                     ->orWhere('messages.message_reciever', $sid);
             })
             ->selectRaw("
-                messages.*,
-                CASE 
-                    WHEN messages.message_sender = ? THEN 'me' 
-                    ELSE NULL 
-                END as me,
-                CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, ' ', LEFT(students.mname, 1), '. ', students.lname)
-                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, ' ', LEFT(parent_guardians.mname, 1), '. ', parent_guardians.lname)
-                    ELSE NULL 
-                END as sender_name
-            ", [$uid])
-            ->get();
+            messages.*,
+            CASE 
+                WHEN messages.message_sender = ? THEN 'me' 
+                ELSE NULL 
+            END as me,
+            CASE 
+                WHEN messages.message_sender IN (SELECT LRN FROM students) THEN 
+                    CONCAT(
+                        students.fname, ' ', 
+                        CASE 
+                            WHEN students.mname IS NOT NULL AND students.mname != '' THEN CONCAT(LEFT(students.mname, 1), '. ')
+                            ELSE ''
+                        END,
+                        students.lname
+                    )
+                WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN 
+                    CONCAT(
+                        parent_guardians.fname, ' ', 
+                        CASE 
+                            WHEN parent_guardians.mname IS NOT NULL AND parent_guardians.mname != '' THEN CONCAT(LEFT(parent_guardians.mname, 1), '. ')
+                            ELSE ''
+                        END,
+                        parent_guardians.lname
+                    )
+                ELSE NULL 
+            END as sender_name
+        ", [$uid])
+        ->get();
 
         }
     
@@ -1147,7 +1184,6 @@ class AuthController extends Controller
     
         return response()->json($sortedParents);
     }
-
     public function storeParent(Request $request)
     {
         // Log incoming request data for debugging
@@ -1263,7 +1299,6 @@ class AuthController extends Controller
         Log::info('LRN(s) added successfully for parent/guardian with email: ' . $email);
         return response()->json(['message' => 'LRN(s) added successfully.'], 200);
     }
-
     public function removeParentStudent(Request $request, $email) {
         $validatedData = $request->validate([
             'LRN' => 'required|exists:parent_guardians,LRN', 
