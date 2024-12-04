@@ -20,6 +20,7 @@ Route::post('/login',[AuthController::class,'login']);
     // dashboard
     Route::get('dashboard',[AuthController::class,'chart']);
     Route::get('/getInquiries', [AuthController::class, 'getInquiries']);
+    Route::get('/allstudents', [AuthController::class, 'allstudents']);
 
 
 

@@ -11,12 +11,14 @@ use App\Models\Classes;
 use App\Models\Student;
 use App\Models\Message;
 use App\Models\Section;
+use App\Models\Enrollment;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+
 class AuthController extends Controller
 {
     // basics
@@ -133,6 +135,9 @@ class AuthController extends Controller
             ->leftJoin('students', function ($join) {
                 $join->on('messages.message_sender', '=', 'students.LRN');
             })
+            ->leftJoin('enrollments', function ($join) {
+                $join->on('students.LRN', '=', 'enrollments.LRN');
+            })
             ->leftJoin('parent_guardians', function ($join) {
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
             })
@@ -142,14 +147,24 @@ class AuthController extends Controller
             })
             // You can add filtering here if needed based on message_reciever
             ->select(
-                'messages.*',
+                'messages.message_id',
+                'messages.message_reciever',
+                'messages.message_sender',
+                'messages.message',
+                DB::raw('DATE(messages.created_at) as message_date'),
+                'messages.created_at',
+                'messages.updated_at',
                 DB::raw('CASE 
                     WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
                     WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
-                    ELSE "User not found"
                 END as sender_name'),
+                DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(enrollments.grade_level, " ", enrollments.strand)
+                    ELSE NULL
+                END as label'),
                 DB::raw('CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname) as admin_name')
             )
+            ->havingRaw('sender_name IS NOT NULL')
             ->orderBy('messages.created_at', 'desc')        
             ->get();
     
@@ -157,36 +172,81 @@ class AuthController extends Controller
     }
     public function chart()
     {
-        // Count the number of enrollments for the school year 2024-2025, grouped by grade_level and strand
-        $enrollmentCounts = DB::table('enrollments')
-            ->select('grade_level', 'strand', DB::raw('count(*) as total'))
-            ->where('school_year', '2024-2025') // Filter for the specific school year
-            ->groupBy('grade_level', 'strand')
-            ->orderBy('grade_level')
-            ->get();
+        try {
+            // Define school year as a constant
+            $schoolYear = '2024-2025';
+
+            // Count the number of enrollments grouped by grade_level and strand
+            $enrollmentCounts = DB::table('enrollments')
+                ->select('grade_level', 'strand', DB::raw('count(*) as total'))
+                ->where('school_year', $schoolYear)
+                ->whereNotNull('regapproval_date') // Ensure regapproval_date is not null
+                ->groupBy('grade_level', 'strand')
+                ->orderBy('grade_level')
+                ->get();
+
+            // Calculate total counts for the school year with regapproval_date not null
+            $totalEnrollments = DB::table('enrollments')
+                ->where('school_year', $schoolYear)
+                ->whereNotNull('regapproval_date') // Ensure regapproval_date is not null
+                ->count();
+
+            // Count junior high enrollments with regapproval_date not null
+            $juniorHighTotal = DB::table('enrollments')
+                ->where('school_year', $schoolYear)
+                ->whereNotNull('regapproval_date') // Ensure regapproval_date is not null
+                ->whereIn('grade_level', ['7', '8', '9', '10'])
+                ->count();
+
+            // Count senior high enrollments with regapproval_date not null
+            $seniorHighTotal = DB::table('enrollments')
+                ->where('school_year', $schoolYear)
+                ->whereNotNull('regapproval_date') // Ensure regapproval_date is not null
+                ->whereIn('grade_level', ['11', '12'])
+                ->count();
+
+            return response()->json([
+                'enrollmentCounts' => $enrollmentCounts,
+                'totalEnrollments' => $totalEnrollments,
+                'juniorHighTotal' => $juniorHighTotal,
+                'seniorHighTotal' => $seniorHighTotal,
+            ]);
+        } catch (\Exception $e) {
+            // Log error message
+            Log::error("Error fetching enrollment data: " . $e->getMessage());
+
+            return response()->json(['error' => 'Unable to fetch enrollment data'], 500);
+        }
+    }
+    public function allstudents()
+    {
+        try {
+            $schoolYear = '2024-2025';
     
-        // Calculate total counts for the school year 2024-2025
-        $totalEnrollments = DB::table('enrollments')
-            ->where('school_year', '2024-2025') // Filter for the specific school year
-            ->count();
-        
-        $juniorHighTotal = DB::table('enrollments')
-            ->where('school_year', '2024-2025') // Filter for the specific school year
-            ->whereIn('grade_level', ['7', '8', '9', '10'])
-            ->count();
-        
-        $seniorHighTotal = DB::table('enrollments')
-            ->where('school_year', '2024-2025') // Filter for the specific school year
-            ->whereIn('grade_level', ['11', '12'])
-            ->count();
+            // Perform a left join with the students table
+            $students = DB::table('enrollments')
+                ->leftJoin('students', 'enrollments.LRN', '=', 'students.LRN') // Left join on LRN
+                ->select(
+                    'enrollments.*', // Select all columns from enrollments
+                    'students.fname',
+                    'students.mname',
+                    'students.lname',
+                    'students.email',
+                    'students.gender'
+                )
+                ->where('enrollments.school_year', $schoolYear) 
+                ->whereNotNull('enrollments.regapproval_date')
+                ->whereIn('enrollments.grade_level', ['7', '8', '9', '10', '11', '12']) // Filter for grades 7-12
+                ->orderByRaw('CAST(enrollments.grade_level AS UNSIGNED) ASC') // Ensure correct numeric sorting
+                ->get();
     
-        return response()->json([
-            'enrollmentCounts' => $enrollmentCounts,
-            'totalEnrollments' => $totalEnrollments,
-            'juniorHighTotal' => $juniorHighTotal,
-            'seniorHighTotal' => $seniorHighTotal,
-        ]);
-    }   
+            return response()->json($students);
+        } catch (\Exception $e) {
+            Log::error("Error fetching all students: " . $e->getMessage());
+    
+            return response()->json(['error' => 'Unable to fetch student data'], 500);
+        }
+    }
 
 
 
@@ -663,40 +723,49 @@ class AuthController extends Controller
         return response()->json($sortedAdmins);
     }
     public function updateAdminsteacher(Request $request, Admin $admin)
-    {
-        // Log the incoming request data
-        Log::info('Updating admin record', [
-            'admin_id' => $admin->id,
-            'request_data' => $request->all(),
-        ]);
-    
-        // Validate the incoming request data
-        $validatedData = $request->validate([
-            'fname' => 'sometimes|required|string|max:255',
-            'mname' => 'sometimes|nullable|string|max:12',
-            'lname' => 'sometimes|required|string|max:255',
-            'address' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|email|max:255',
-        ]);
-    
-        // Log the validated data
-        Log::info('Validated data for admin update', [
-            'admin_id' => $admin->id,
-            'validated_data' => $validatedData,
-        ]);
-    
-        // Update the admin instance with validated data
-        $admin->update($validatedData);
-    
-        // Log successful update
-        Log::info('Admin record updated successfully', [
-            'admin_id' => $admin->id,
-            'updated_data' => $admin,
-        ]);
-    
-        // Return a JSON response with the updated admin data
-        return response()->json($admin, 200);
+{
+    // Log the incoming request data
+    Log::info('Updating admin record', [
+        'admin_id' => $admin->id,
+        'request_data' => $request->all(),
+    ]);
+
+    // Validate the incoming request data
+    $validatedData = $request->validate([
+        'fname' => 'sometimes|required|string|max:255',
+        'mname' => 'sometimes|nullable|string|max:12',
+        'lname' => 'sometimes|required|string|max:255',
+        'address' => 'sometimes|required|string|max:255',
+        'email' => 'sometimes|required|email|max:255',
+        'password' => 'sometimes|nullable|string|min:8',
+    ]);
+
+    // Log the validated data
+    Log::info('Validated data for admin update', [
+        'admin_id' => $admin->id,
+        'validated_data' => $validatedData,
+    ]);
+
+    // If a new password is provided, hash it before updating
+    if (isset($validatedData['password'])) {
+        $validatedData['password'] = bcrypt($validatedData['password']);
+    } else {
+        // Remove password from validated data if not provided
+        unset($validatedData['password']);
     }
+
+    // Update the admin instance with validated data
+    $admin->update($validatedData);
+
+    // Log successful update
+    Log::info('Admin record updated successfully', [
+        'admin_id' => $admin->id,
+        'updated_data' => $admin,
+    ]);
+
+    // Return a JSON response with the updated admin data
+    return response()->json($admin, 200);
+}
     public function destroyAdminsteacher($admin)
     {
         try {
@@ -840,12 +909,7 @@ class AuthController extends Controller
     public function getMessages(Request $request) {
         $uid = $request->input('uid');
     
-        // Subquery to get the latest message for each sender
-        $latestMessages = DB::table('messages')
-            ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
-            ->groupBy('message_sender');
-    
-        // Main query to get messages
+        // Main query to get messages for the entire conversation
         $msg = DB::table('messages')
             ->leftJoin('students', function ($join) {
                 $join->on('messages.message_sender', '=', 'students.LRN');
@@ -856,23 +920,44 @@ class AuthController extends Controller
             ->leftJoin('parent_guardians', function ($join) {
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
             })
-            ->where('messages.message_reciever', '=', $uid) // Filter by receiver
-            ->where(function ($query) {
-                $query->whereNotNull('students.LRN')
-                      ->orWhereNotNull('admins.admin_id')
-                      ->orWhereNotNull('parent_guardians.guardian_id');
-            }) // Ensure sender exists in one of the tables
+            ->leftJoin('students as receiver_students', function ($join) {
+                $join->on('messages.message_reciever', '=', 'receiver_students.LRN');
+            })
+            ->leftJoin('admins as receiver_admins', function ($join) {
+                $join->on('messages.message_reciever', '=', 'receiver_admins.admin_id');
+            })
+            ->leftJoin('parent_guardians as receiver_guardians', function ($join) {
+                $join->on('messages.message_reciever', '=', 'receiver_guardians.guardian_id');
+            })
+            ->where(function($query) use ($uid) {
+                $query->where('messages.message_sender', '=', $uid) // Messages sent by the user
+                      ->orWhere('messages.message_reciever', '=', $uid); // Messages received by the user
+            })
             ->select('messages.*', 
                 DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(COALESCE(students.mname, ""), 1), ". ", students.lname)
-                    WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN CONCAT(admins.fname, " ", LEFT(COALESCE(admins.mname, ""), 1), ". ", admins.lname)
-                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(COALESCE(parent_guardians.mname, ""), 1), ". ", parent_guardians.lname)
-                END as sender_name'))
+                        WHEN messages.message_sender IN (SELECT LRN FROM students) THEN 
+                            CONCAT(students.fname, 
+                                IFNULL(CONCAT(" ", LEFT(students.mname, 1), "."), ""), 
+                                " ", 
+                                students.lname)
+                        WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN 
+                            CONCAT(receiver_students.fname, 
+                                IFNULL(CONCAT(" ", LEFT(receiver_students.mname, 1), "."), ""), 
+                                " ", 
+                                receiver_students.lname)
+                        WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN 
+                            CONCAT(parent_guardians.fname, 
+                                IFNULL(CONCAT(" ", LEFT(parent_guardians.mname, 1), "."), ""), 
+                                " ", 
+                                parent_guardians.lname)
+                    END as sender_name'))
+            ->havingRaw('sender_name IS NOT NULL')
             ->orderBy('messages.created_at', 'desc')
             ->get();
-    
+        
         return $msg;
     }
+    
     public function getConvo(Request $request, $sid) {
         // Initialize the response variable
         $user = null;
