@@ -58,9 +58,10 @@ Route::post('/login',[AuthController::class,'login']);
     Route::post('/postparentguardian',[AuthController::class,'storeParent']);
     Route::patch('/parentguardian/{email}', [AuthController::class, 'updateParent']);
     Route::delete('/parentguardian/{email}', [AuthController::class, 'destroyParent']);
-    Route::delete('parentguardian/{email}/remove', [AuthController::class, 'removeParentStudent']);
+    // Route::delete('parentguardian/{email}/remove', [AuthController::class, 'removeParentStudent']);
+    // Route::delete('parent-guardian/delete', [AuthController::class, 'deleteParentGuardian']);
 
-
+    Route::delete('/guardian/delete/{email}/{lrn}', [AuthController::class, 'deleteGuardian']);
 
     // Section
     Route::get('sections', [AuthController::class,'getindexSection']); 

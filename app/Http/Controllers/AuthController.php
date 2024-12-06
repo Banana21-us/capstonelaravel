@@ -18,6 +18,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+
 
 class AuthController extends Controller
 {
@@ -956,8 +958,7 @@ class AuthController extends Controller
             ->get();
         
         return $msg;
-    }
-    
+    }   
     public function getConvo(Request $request, $sid) {
         // Initialize the response variable
         $user = null;
@@ -1321,82 +1322,206 @@ class AuthController extends Controller
         return response()->json($parents, 201);
     }
     public function updateParent(Request $request, $email)
-    {
-        // Log incoming request data for debugging
-        Log::info('Incoming request to update parent/guardian with email: ' . $email, $request->all());
+{
+    Log::info('Incoming request to update parent/guardian with email: ' . $email, $request->all());
 
-        // Validate the incoming LRN data
-        $validatedData = $request->validate([
-            'LRN' => 'required|array',
-            'LRN.*' => 'exists:students,LRN', // Ensure LRN exists in the students table
-        ]);
+    // Fetch all records with the given email
+    $parentGuardians = ParentGuardian::where('email', $email)->get();
 
-        // Log the validated LRN data
-        Log::info('Validated LRN data:', $validatedData);
+    if ($parentGuardians->isEmpty()) {
+        Log::warning('No parent/guardian found with email: ' . $email);
+        return response()->json(['message' => 'No Parent/Guardian found with that email.'], 404);
+    }
 
-        // Find parent/guardian by email
-        $parentGuardians = ParentGuardian::where('email', $email)->get();
+    // Validate the request data
+    $validatedData = $request->validate([
+        'LRN' => 'nullable|array',
+        'LRN.*' => 'exists:students,LRN', // Ensure LRNs exist in the students table
+        'email' => [
+            'nullable',
+            'email',
+            Rule::unique('parent_guardians', 'email')->ignore($email, 'email'),
+        ],
+        'password' => 'nullable|string|min:8',
+    ]);
 
-        // Log if no parent/guardian was found
-        if ($parentGuardians->isEmpty()) {
-            Log::warning('No parent/guardian found with email: ' . $email);
-            return response()->json(['message' => 'No Parent/Guardian found with that email.'], 404);
+    // Update all records with the given email
+    foreach ($parentGuardians as $parentGuardian) {
+        // Update email if provided
+        if ($request->filled('email')) {
+            Log::info('Updating email for guardian:', [
+                'old_email' => $parentGuardian->email, 
+                'new_email' => $validatedData['email']
+            ]);
+            $parentGuardian->email = $validatedData['email'];
         }
 
-        // Log the found parent/guardian records
-        Log::info('Found parent/guardian(s):', $parentGuardians->toArray());
+        // Update password if provided
+        if ($request->filled('password')) {
+            Log::info('Updating password for guardian with email: ' . $parentGuardian->email);
+            $parentGuardian->password = bcrypt($validatedData['password']);
+        }
 
-        // Loop through the parent/guardian records
-        foreach ($parentGuardians as $guardian) {
-            // Log the current guardian being processed
-            Log::info('Processing guardian:', $guardian->toArray());
+        // Save each updated guardian record
+        $parentGuardian->save();
+    }
 
-            // Loop through the LRN data
-            foreach ($validatedData['LRN'] as $l) {
-                // Log the LRN being processed for this guardian
-                Log::info('Processing LRN: ' . $l);
-
-                // Check if the LRN already exists for this guardian
-                if (!ParentGuardian::where('email', $guardian->email)->where('LRN', $l)->exists()) {
-                    // Log that the LRN does not exist and will be created
-                    Log::info('Creating new record for guardian with email: ' . $guardian->email . ' and LRN: ' . $l);
-
-                    // Create new ParentGuardian record
-                    ParentGuardian::create([
-                        'LRN' => $l,
-                        'fname' => $guardian->fname,
-                        'mname' => $guardian->mname,
-                        'lname' => $guardian->lname,
-                        'address' => $guardian->address,
-                        'relationship' => $guardian->relationship,
-                        'contact_no' => $guardian->contact_no,
-                        'email' => $guardian->email,
-                        'password' => $guardian->password
-                    ]);
-                } else {
-                    // Log if the LRN already exists
-                    Log::info('LRN: ' . $l . ' already exists for guardian with email: ' . $guardian->email);
-                }
+    // Add new LRNs if provided
+    if ($request->filled('LRN')) {
+        foreach ($validatedData['LRN'] as $l) {
+            // Check if the LRN already exists for any record with the same email
+            $exists = ParentGuardian::where('email', $email)->where('LRN', $l)->exists();
+            if (!$exists) {
+                ParentGuardian::create([
+                    'LRN' => $l,
+                    'fname' => $parentGuardians->first()->fname,
+                    'mname' => $parentGuardians->first()->mname,
+                    'lname' => $parentGuardians->first()->lname,
+                    'address' => $parentGuardians->first()->address,
+                    'relationship' => $parentGuardians->first()->relationship,
+                    'contact_no' => $parentGuardians->first()->contact_no,
+                    'email' => $validatedData['email'] ?? $email,
+                    'password' => $parentGuardians->first()->password,
+                ]);
+                Log::info("Added new LRN: $l for email: " . ($validatedData['email'] ?? $email));
+            } else {
+                Log::info("Skipped adding LRN: $l as it already exists for email: " . ($validatedData['email'] ?? $email));
             }
         }
+    }
 
-        // Log the successful update and return a response
-        Log::info('LRN(s) added successfully for parent/guardian with email: ' . $email);
-        return response()->json(['message' => 'LRN(s) added successfully.'], 200);
+    return response()->json(['message' => 'Parent/Guardian records updated successfully.'], 200);
     }
-    public function removeParentStudent(Request $request, $email) {
-        $validatedData = $request->validate([
-            'LRN' => 'required|exists:parent_guardians,LRN', 
+
+        
+
+        
+    public function removeParentStudent(Request $request, $email)
+{
+    // Clean and normalize inputs
+    $email = strtolower(trim($email)); // Normalize email (to lowercase and trim)
+
+    // Ensure LRN is a string and trim any whitespace, check if LRN is an array
+    $LRN = $request->input('LRN');
+    if (is_array($LRN)) {
+        // If LRN is an array, take the first element (or handle accordingly)
+        $LRN = $LRN[0];
+    }
+    $LRN = trim($LRN); // Trim any whitespace
+
+    // Log the input parameters for debugging purposes
+    Log::info('Received email and LRN for removal', [
+        'email' => $email,
+        'LRN' => $LRN
+    ]);
+    
+    // Fetch the record using case-insensitive matching for email and exact match for LRN
+    $record = ParentGuardian::whereRaw('LOWER(email) = ?', [strtolower($email)])
+                            ->where('LRN', $LRN)
+                            ->first();
+    
+    if (!$record) {
+        // Log a warning if the record was not found
+        Log::warning('Record not found', [
+            'email' => $email,
+            'LRN' => $LRN
         ]);
-    
-        // Set the LRN to null instead of deleting the record
-        $updated = ParentGuardian::where('LRN', $validatedData['LRN'])
-            ->update(['LRN' => null]); // Update the LRN to null
-    
-        Log::info('LRN update attempt', ['LRN' => $validatedData['LRN'], 'updated' => $updated]);
-    
-        return response()->json(['updatedCount' => $updated]);
+        return response()->json(['error' => 'Record not found'], 404);
     }
+    
+    // Delete the record if found
+    $record->delete();
+    
+    // Log success after deleting the record
+    Log::info('ParentGuardian record deleted', [
+        'email' => $email,
+        'LRN' => $LRN
+    ]);
+    
+    // Return success response
+    return response()->json(['message' => 'Record successfully deleted'], 200);
+}
+
+    
+
+    
+    
+public function deleteGuardian($email, $lrn)
+    {
+        // Find the guardian record by email and LRN
+        $guardian = ParentGuardian::where('email', $email)
+            ->where('LRN', $lrn)
+            ->first();
+
+        // Check if the guardian exists
+        if ($guardian) {
+            // Delete the guardian record
+            $guardian->delete();
+            return response()->json(['message' => 'Guardian deleted successfully.'], 200);
+        }
+
+        // If not found, return an error response
+        return response()->json(['message' => 'Guardian not found.'], 404);
+    }
+
+
+
+    public function deleteParentGuardian(Request $request)
+    {
+        $email = $request->input('email');
+        $lrn = $request->input('lrn');
+        
+        // Find the parent guardian record based on email and LRN
+        $parentGuardian = ParentGuardian::where('email', $email)
+                                         ->where('LRN', $lrn)
+                                         ->first();
+
+        if ($parentGuardian) {
+            // Delete the parent guardian record
+            $parentGuardian->delete();
+            return response()->json(['message' => 'Record deleted successfully.'], 200);
+        }
+
+        // If the record does not exist
+        return response()->json(['message' => 'Record not found.'], 404);
+    }
+
+
+    // public function removeParentStudent(Request $request, $email) {
+    //     // Log incoming request details
+    //     Log::info('Incoming request to remove ParentGuardian', [
+    //         'email' => $email,
+    //         'LRN' => $request->input('LRN') // Get LRN from request input
+    //     ]);
+    
+    //     // Validate that the LRN is provided and exists in the parent_guardians table
+    //     $validatedData = $request->validate([
+    //         'LRN' => 'required|exists:parent_guardians,LRN', 
+    //     ]);
+        
+    //     // Log validated data
+    //     Log::info('Validated data', [
+    //         'LRN' => $validatedData['LRN']
+    //     ]);
+    
+    //     // Delete the record associated with the given LRN
+    //     $deleted = ParentGuardian::where('LRN', $validatedData['LRN'])->delete(); // Delete the record
+    
+    //     // Log the result of the deletion attempt
+    //     Log::info('Guardian record deletion attempt', [
+    //         'LRN' => $validatedData['LRN'],
+    //         'deletedCount' => $deleted
+    //     ]);
+    
+    //     return response()->json(['deletedCount' => $deleted]);
+    // }
+   
+    
+    
+    
+    
+    
+    
     public function destroyParent($email)
     {
     $parentGuardians = ParentGuardian::where('email', $email)->get();
@@ -1415,9 +1540,4 @@ class AuthController extends Controller
         return response()->json(['message' => 'Error deleting Parent/Guardians: ' . $e->getMessage()], 500);
     }
     }
-
-
-
-    
-
 }
