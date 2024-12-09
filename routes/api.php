@@ -60,7 +60,6 @@ Route::post('/login',[AuthController::class,'login']);
     Route::delete('/parentguardian/{email}', [AuthController::class, 'destroyParent']);
     // Route::delete('parentguardian/{email}/remove', [AuthController::class, 'removeParentStudent']);
     // Route::delete('parent-guardian/delete', [AuthController::class, 'deleteParentGuardian']);
-
     Route::delete('/guardian/delete/{email}/{lrn}', [AuthController::class, 'deleteGuardian']);
 
     // Section

@@ -126,13 +126,9 @@ class AuthController extends Controller
 
 
     // dashboard
-    public function getInquiries() {
-        // Subquery to get the latest message for each message_sender
-        $latestMessages = DB::table('messages')
-            ->select('message_sender', DB::raw('MAX(created_at) as max_created_at'))
-            ->groupBy('message_sender');
-    
-        // Main query to get the latest messages along with sender details
+    public function getInquiries(Request $request){
+        $uid = $request->input('uid');
+
         $data = DB::table('messages')
             ->leftJoin('students', function ($join) {
                 $join->on('messages.message_sender', '=', 'students.LRN');
@@ -142,35 +138,46 @@ class AuthController extends Controller
             })
             ->leftJoin('parent_guardians', function ($join) {
                 $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
-            })
+            })     
             ->leftJoin('admins', 'messages.message_reciever', '=', 'admins.admin_id')
             ->whereNotIn('messages.message_sender', function ($query) {
                 $query->select('admin_id')->from('admins');
             })
-            // You can add filtering here if needed based on message_reciever
-            ->select(
-                'messages.message_id',
-                'messages.message_reciever',
-                'messages.message_sender',
-                'messages.message',
-                DB::raw('DATE(messages.created_at) as message_date'),
-                'messages.created_at',
-                'messages.updated_at',
-                DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(students.fname, " ", LEFT(students.mname, 1), ". ", students.lname)
-                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN CONCAT(parent_guardians.fname, " ", LEFT(parent_guardians.mname, 1), ". ", parent_guardians.lname)
-                END as sender_name'),
-                DB::raw('CASE 
-                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN CONCAT(enrollments.grade_level, " ", enrollments.strand)
+            ->where('messages.message_reciever', '=', $uid)
+            // ->join('admins as sender_admin', 'messages.message_sender', '=', 'sender_admin.admin_id')
+            // ->join('students as reciever', 'messages.message_reciever', '=', 'reciever.LRN')
+            ->select('messages.*', 
+                    DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN 
+                    CONCAT(students.fname, " ", 
+                        CASE 
+                            WHEN students.mname IS NOT NULL THEN CONCAT(LEFT(students.mname, 1), ". ") 
+                            ELSE "" 
+                        END, 
+                    students.lname)
+                    WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN 
+                        CONCAT(parent_guardians.fname, " ", 
+                            CASE 
+                                WHEN parent_guardians.mname IS NOT NULL THEN CONCAT(LEFT(parent_guardians.mname, 1), ". ") 
+                                ELSE "" 
+                            END, 
+                        parent_guardians.lname)
+                    END as sender_name'),
+                    DB::raw('CONCAT(admins.fname, " ",COALESCE(LEFT(admins.mname, 1),""), ". ", admins.lname)as admin_name'),
+                    DB::raw('CASE 
+                    WHEN messages.message_sender IN (SELECT LRN FROM students) THEN 
+                        CASE 
+                            WHEN enrollments.strand IS NULL THEN enrollments.grade_level 
+                            ELSE CONCAT(enrollments.grade_level, " ", enrollments.strand) 
+                        END
                     ELSE NULL
-                END as label'),
-                DB::raw('CONCAT(admins.fname, " ", LEFT(admins.mname, 1), ". ", admins.lname) as admin_name')
-            )
+                    END as label')
+                    )
             ->havingRaw('sender_name IS NOT NULL')
-            ->orderBy('messages.created_at', 'desc')        
+            ->orderBy('messages.created_at', 'desc')
             ->get();
     
-        return response()->json($data);
+        return $data;
     }
     public function chart()
     {
@@ -403,7 +410,7 @@ class AuthController extends Controller
                 // Validate the request data
                 $validatedData = $request->validate([
                     'section_id' => 'required|exists:sections,section_id',
-                    'room' => 'required|integer|max:999',
+                    'room' => 'required|string|max:999',
                     'forms' => 'required|array',
                     'forms.*.teacher' => 'required|exists:admins,admin_id',
                     'forms.*.subject_id' => 'required|exists:subjects,subject_id',
@@ -618,27 +625,67 @@ class AuthController extends Controller
         
         return array_values($organizedSubjects);
     }
+    // public function storeSubject(Request $request)
+    // {
+    //     $validatedData = $request->validate([
+    //         'subject_name' => 'required|array',
+    //         'subject_name.*' => 'required|string|max:255',
+    //         'grade_level' => 'required|integer|max:12',
+    //         'strand' => 'required|string|max:255',
+    //     ]);
+
+    //     $subjects = [];
+        
+    //     foreach ($validatedData['subject_name'] as $name) {
+    //         $subjects[] = Subject::create([
+    //             'subject_name' => $name,
+    //             'grade_level' => $validatedData['grade_level'],
+    //             'strand' => $validatedData['strand'],
+    //         ]);
+    //     }
+
+    //     return response()->json($subjects, 201);
+    // }
+    
     public function storeSubject(Request $request)
     {
-        $validatedData = $request->validate([
-            'subject_name' => 'required|array',
-            'subject_name.*' => 'required|string|max:255',
-            'grade_level' => 'required|integer|max:12',
-            'strand' => 'required|string|max:255',
-        ]);
+    Log::info('Incoming request data:', $request->all());
 
-        $subjects = [];
-        
-        foreach ($validatedData['subject_name'] as $name) {
-            $subjects[] = Subject::create([
-                'subject_name' => $name,
-                'grade_level' => $validatedData['grade_level'],
-                'strand' => $validatedData['strand'],
-            ]);
+    $validatedData = $request->validate([
+        'subject_name' => 'required|array',
+        'subject_name.*' => 'required|string|max:255',
+        'grade_level' => 'required|integer|max:12',
+        'strand' => 'required|string|max:255',
+        'image' => 'array',
+        'image.*' => 'nullable|file|mimes:jpeg,png,jpg,gif|max:2048',
+    ]);
+
+    $subjects = [];
+    
+    foreach ($validatedData['subject_name'] as $index => $name) {
+        $imagePath = null;
+
+        if ($request->hasFile('image') && $request->file('image')[$index]) {
+            $imageFile = $request->file('image')[$index];
+            $originalFilename = $imageFile->getClientOriginalName();
+            $imagePath = $imageFile->storeAs('images', $originalFilename, 'public');
         }
 
-        return response()->json($subjects, 201);
+        $subjects[] = Subject::create([
+            'subject_name' => $name,
+            'grade_level' => $validatedData['grade_level'],
+            'strand' => $validatedData['strand'],
+            'image' => $imagePath,
+        ]);
     }
+
+    Log::info('Subjects created successfully:', $subjects);
+    
+    return response()->json($subjects, 201);
+}
+    
+
+    
     public function updateSubject(Request $request, $gradeLevel, $strand)
     {
         // Validate incoming request data
@@ -1164,12 +1211,12 @@ class AuthController extends Controller
 
 
     // announcements
-    public function getAnnouncements()
-{
-    // Retrieve announcements where admin_id is 1
-    $announcements = Announcement::where('admin_id', 1)->get();
-    return $announcements;
-}
+    public function getAnnouncements() {
+        $announcements = Announcement::where('admin_id', 1)
+                                      ->orderBy('created_at', 'desc')
+                                      ->get();
+        return $announcements;
+    }
     public function postAnnouncements(Request $request)
     {
         $validatedData = $request->validate([
@@ -1392,136 +1439,6 @@ class AuthController extends Controller
 
     return response()->json(['message' => 'Parent/Guardian records updated successfully.'], 200);
     }
-
-        
-
-        
-    public function removeParentStudent(Request $request, $email)
-{
-    // Clean and normalize inputs
-    $email = strtolower(trim($email)); // Normalize email (to lowercase and trim)
-
-    // Ensure LRN is a string and trim any whitespace, check if LRN is an array
-    $LRN = $request->input('LRN');
-    if (is_array($LRN)) {
-        // If LRN is an array, take the first element (or handle accordingly)
-        $LRN = $LRN[0];
-    }
-    $LRN = trim($LRN); // Trim any whitespace
-
-    // Log the input parameters for debugging purposes
-    Log::info('Received email and LRN for removal', [
-        'email' => $email,
-        'LRN' => $LRN
-    ]);
-    
-    // Fetch the record using case-insensitive matching for email and exact match for LRN
-    $record = ParentGuardian::whereRaw('LOWER(email) = ?', [strtolower($email)])
-                            ->where('LRN', $LRN)
-                            ->first();
-    
-    if (!$record) {
-        // Log a warning if the record was not found
-        Log::warning('Record not found', [
-            'email' => $email,
-            'LRN' => $LRN
-        ]);
-        return response()->json(['error' => 'Record not found'], 404);
-    }
-    
-    // Delete the record if found
-    $record->delete();
-    
-    // Log success after deleting the record
-    Log::info('ParentGuardian record deleted', [
-        'email' => $email,
-        'LRN' => $LRN
-    ]);
-    
-    // Return success response
-    return response()->json(['message' => 'Record successfully deleted'], 200);
-}
-
-    
-
-    
-    
-public function deleteGuardian($email, $lrn)
-    {
-        // Find the guardian record by email and LRN
-        $guardian = ParentGuardian::where('email', $email)
-            ->where('LRN', $lrn)
-            ->first();
-
-        // Check if the guardian exists
-        if ($guardian) {
-            // Delete the guardian record
-            $guardian->delete();
-            return response()->json(['message' => 'Guardian deleted successfully.'], 200);
-        }
-
-        // If not found, return an error response
-        return response()->json(['message' => 'Guardian not found.'], 404);
-    }
-
-
-
-    public function deleteParentGuardian(Request $request)
-    {
-        $email = $request->input('email');
-        $lrn = $request->input('lrn');
-        
-        // Find the parent guardian record based on email and LRN
-        $parentGuardian = ParentGuardian::where('email', $email)
-                                         ->where('LRN', $lrn)
-                                         ->first();
-
-        if ($parentGuardian) {
-            // Delete the parent guardian record
-            $parentGuardian->delete();
-            return response()->json(['message' => 'Record deleted successfully.'], 200);
-        }
-
-        // If the record does not exist
-        return response()->json(['message' => 'Record not found.'], 404);
-    }
-
-
-    // public function removeParentStudent(Request $request, $email) {
-    //     // Log incoming request details
-    //     Log::info('Incoming request to remove ParentGuardian', [
-    //         'email' => $email,
-    //         'LRN' => $request->input('LRN') // Get LRN from request input
-    //     ]);
-    
-    //     // Validate that the LRN is provided and exists in the parent_guardians table
-    //     $validatedData = $request->validate([
-    //         'LRN' => 'required|exists:parent_guardians,LRN', 
-    //     ]);
-        
-    //     // Log validated data
-    //     Log::info('Validated data', [
-    //         'LRN' => $validatedData['LRN']
-    //     ]);
-    
-    //     // Delete the record associated with the given LRN
-    //     $deleted = ParentGuardian::where('LRN', $validatedData['LRN'])->delete(); // Delete the record
-    
-    //     // Log the result of the deletion attempt
-    //     Log::info('Guardian record deletion attempt', [
-    //         'LRN' => $validatedData['LRN'],
-    //         'deletedCount' => $deleted
-    //     ]);
-    
-    //     return response()->json(['deletedCount' => $deleted]);
-    // }
-   
-    
-    
-    
-    
-    
-    
     public function destroyParent($email)
     {
     $parentGuardians = ParentGuardian::where('email', $email)->get();
@@ -1540,4 +1457,86 @@ public function deleteGuardian($email, $lrn)
         return response()->json(['message' => 'Error deleting Parent/Guardians: ' . $e->getMessage()], 500);
     }
     }
+    public function deleteGuardian($email, $lrn)
+    {
+        // Find the guardian record by email and LRN
+        $guardian = ParentGuardian::where('email', $email)
+            ->where('LRN', $lrn)
+            ->first();
+
+        // Check if the guardian exists
+        if ($guardian) {
+            // Delete the guardian record
+            $guardian->delete();
+            return response()->json(['message' => 'Guardian deleted successfully.'], 200);
+        }
+
+        // If not found, return an error response
+        return response()->json(['message' => 'Guardian not found.'], 404);
+    }
+    // public function deleteParentGuardian(Request $request)
+    // {
+    //     $email = $request->input('email');
+    //     $lrn = $request->input('lrn');
+        
+    //     // Find the parent guardian record based on email and LRN
+    //     $parentGuardian = ParentGuardian::where('email', $email)
+    //                                      ->where('LRN', $lrn)
+    //                                      ->first();
+
+    //     if ($parentGuardian) {
+    //         // Delete the parent guardian record
+    //         $parentGuardian->delete();
+    //         return response()->json(['message' => 'Record deleted successfully.'], 200);
+    //     }
+
+    //     // If the record does not exist
+    //     return response()->json(['message' => 'Record not found.'], 404);
+    // }
+    // public function removeParentStudent(Request $request, $email)
+    // {
+    //     // Clean and normalize inputs
+    //     $email = strtolower(trim($email)); // Normalize email (to lowercase and trim)
+    
+    //     // Ensure LRN is a string and trim any whitespace, check if LRN is an array
+    //     $LRN = $request->input('LRN');
+    //     if (is_array($LRN)) {
+    //         // If LRN is an array, take the first element (or handle accordingly)
+    //         $LRN = $LRN[0];
+    //     }
+    //     $LRN = trim($LRN); // Trim any whitespace
+    
+    //     // Log the input parameters for debugging purposes
+    //     Log::info('Received email and LRN for removal', [
+    //         'email' => $email,
+    //         'LRN' => $LRN
+    //     ]);
+        
+    //     // Fetch the record using case-insensitive matching for email and exact match for LRN
+    //     $record = ParentGuardian::whereRaw('LOWER(email) = ?', [strtolower($email)])
+    //                             ->where('LRN', $LRN)
+    //                             ->first();
+        
+    //     if (!$record) {
+    //         // Log a warning if the record was not found
+    //         Log::warning('Record not found', [
+    //             'email' => $email,
+    //             'LRN' => $LRN
+    //         ]);
+    //         return response()->json(['error' => 'Record not found'], 404);
+    //     }
+        
+    //     // Delete the record if found
+    //     $record->delete();
+        
+    //     // Log success after deleting the record
+    //     Log::info('ParentGuardian record deleted', [
+    //         'email' => $email,
+    //         'LRN' => $LRN
+    //     ]);
+        
+    //     // Return success response
+    //     return response()->json(['message' => 'Record successfully deleted'], 200);
+    // }
+    
 }
