@@ -342,65 +342,124 @@ class AuthController extends Controller
     
         return response()->json($result);
     }
+    // public function storeClass(Request $request)
+    // {
+    // DB::beginTransaction();
+    // try {
+    //     // Validation code...
+    //     $validatedData = $request->validate([
+    //         'section_id' => 'required|exists:sections,section_id',
+    //         'room' => 'required|string|max:255',
+    //         'semester' => 'nullable|integer', // Add validation for semester
+    //         'forms' => 'required|array',
+    //         'forms.*.teacher' => 'required|exists:admins,admin_id',
+    //         'forms.*.subject_id' => 'required|exists:subjects,subject_id',
+    //         'forms.*.time' => 'required|string|max:255',
+    //         'forms.*.selectedDays' => 'required|array',
+    //         'forms.*.selectedDays.*' => 'required|string|max:255',
+    //     ]);
+
+    //     // Log the validated data
+    //     Log::info('Creating classes with validated data:', [
+    //         'section_id' => $validatedData['section_id'],
+    //         'room' => $validatedData['room'],
+    //         'semester' => $validatedData['semester'], // Log semester
+    //         'forms_count' => count($validatedData['forms']),
+    //     ]);
+
+    //     foreach ($validatedData['forms'] as $form) {
+    //         Log::info('Inserting class for teacher:', [
+    //             'admin_id' => $form['teacher'],
+    //             'section_id' => $validatedData['section_id'],
+    //             'room' => $validatedData['room'],
+    //             'time' => $form['time'],
+    //             'schedule' => implode(',', $form['selectedDays']),
+    //             'subject_id' => $form['subject_id'],
+    //             'semester' => $validatedData['semester'], // Include semester in logs
+    //         ]);
+
+    //         Classes::create([
+    //             'admin_id' => $form['teacher'],
+    //             'section_id' => $validatedData['section_id'],
+    //             'room' => $validatedData['room'],
+    //             'time' => $form['time'],
+    //             'schedule' => implode(',', $form['selectedDays']),
+    //             'subject_id' => $form['subject_id'],
+    //             'semester' => $validatedData['semester'], // Set semester
+    //         ]);
+    //     }
+
+    //     DB::commit(); // Commit the transaction
+    //     return response()->json(['message' => 'Classes successfully created'], 201);
+    // } catch (ValidationException $e) {
+    //     DB::rollBack(); // Rollback on validation errors
+    //     Log::error('Validation failed:', $e->errors());
+    //     Log::info('Received request data:', $request->all());
+    //     return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+    // } catch (\Exception $e) {
+    //     DB::rollBack(); // Rollback on other exceptions
+    //     Log::error('An error occurred while creating the class:', ['error' => $e->getMessage()]);
+    //     return response()->json(['message' => 'Failed to create class.', 'error' => $e->getMessage()], 500);
+    // }
+    // }
     public function storeClass(Request $request)
     {
-    DB::beginTransaction();
-    try {
-        // Validation code...
-        $validatedData = $request->validate([
-            'section_id' => 'required|exists:sections,section_id',
-            'room' => 'required|string|max:255',
-            'semester' => 'nullable|integer', // Add validation for semester
-            'forms' => 'required|array',
-            'forms.*.teacher' => 'required|exists:admins,admin_id',
-            'forms.*.subject_id' => 'required|exists:subjects,subject_id',
-            'forms.*.time' => 'required|string|max:255',
-            'forms.*.selectedDays' => 'required|array',
-            'forms.*.selectedDays.*' => 'required|string|max:255',
-        ]);
-
-        // Log the validated data
-        Log::info('Creating classes with validated data:', [
-            'section_id' => $validatedData['section_id'],
-            'room' => $validatedData['room'],
-            'semester' => $validatedData['semester'], // Log semester
-            'forms_count' => count($validatedData['forms']),
-        ]);
-
-        foreach ($validatedData['forms'] as $form) {
-            Log::info('Inserting class for teacher:', [
-                'admin_id' => $form['teacher'],
+        DB::beginTransaction();
+        try {
+            // Validation code...
+            $validatedData = $request->validate([
+                'section_id' => 'required|exists:sections,section_id',
+                'room' => 'required|string|max:255',
+                'forms' => 'required|array',
+                'forms.*.teacher' => 'required|exists:admins,admin_id',
+                'forms.*.subject_id' => 'required|exists:subjects,subject_id',
+                'forms.*.time' => 'required|string|max:255',
+                'forms.*.selectedDays' => 'required|array',
+                'forms.*.selectedDays.*' => 'required|string|max:255',
+                'forms.*.semester' => 'nullable|integer', // Add semester validation for each form
+            ]);
+    
+            // Log the validated data
+            Log::info('Creating classes with validated data:', [
                 'section_id' => $validatedData['section_id'],
                 'room' => $validatedData['room'],
-                'time' => $form['time'],
-                'schedule' => implode(',', $form['selectedDays']),
-                'subject_id' => $form['subject_id'],
-                'semester' => $validatedData['semester'], // Include semester in logs
+                'forms_count' => count($validatedData['forms']),
             ]);
-
-            Classes::create([
-                'admin_id' => $form['teacher'],
-                'section_id' => $validatedData['section_id'],
-                'room' => $validatedData['room'],
-                'time' => $form['time'],
-                'schedule' => implode(',', $form['selectedDays']),
-                'subject_id' => $form['subject_id'],
-                'semester' => $validatedData['semester'], // Set semester
-            ]);
+    
+            foreach ($validatedData['forms'] as $form) {
+                Log::info('Inserting class for teacher:', [
+                    'admin_id' => $form['teacher'],
+                    'section_id' => $validatedData['section_id'],
+                    'room' => $validatedData['room'],
+                    'time' => $form['time'],
+                    'schedule' => implode(',', $form['selectedDays']),
+                    'subject_id' => $form['subject_id'],
+                    'semester' => $form['semester'], // Use semester from each form
+                ]);
+    
+                Classes::create([
+                    'admin_id' => $form['teacher'],
+                    'section_id' => $validatedData['section_id'],
+                    'room' => $validatedData['room'],
+                    'time' => $form['time'],
+                    'schedule' => implode(',', $form['selectedDays']),
+                    'subject_id' => $form['subject_id'],
+                    'semester' => $form['semester'], // Set semester from each form
+                ]);
+            }
+    
+            DB::commit(); // Commit the transaction
+            return response()->json(['message' => 'Classes successfully created'], 201);
+        } catch (ValidationException $e) {
+            DB::rollBack(); // Rollback on validation errors
+            Log::error('Validation failed:', $e->errors());
+            Log::info('Received request data:', $request->all());
+            return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            DB::rollBack(); // Rollback on other exceptions
+            Log::error('An error occurred while creating the class:', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to create class.', 'error' => $e->getMessage()], 500);
         }
-
-        DB::commit(); // Commit the transaction
-        return response()->json(['message' => 'Classes successfully created'], 201);
-    } catch (ValidationException $e) {
-        DB::rollBack(); // Rollback on validation errors
-        Log::error('Validation failed:', $e->errors());
-        Log::info('Received request data:', $request->all());
-        return response()->json(['message' => 'Validation failed', 'errors' => $e->errors()], 422);
-    } catch (\Exception $e) {
-        DB::rollBack(); // Rollback on other exceptions
-        Log::error('An error occurred while creating the class:', ['error' => $e->getMessage()]);
-        return response()->json(['message' => 'Failed to create class.', 'error' => $e->getMessage()], 500);
-    }
     }
     public function updateClass(Request $request, $id){  
             $classes = Classes::find($id);
