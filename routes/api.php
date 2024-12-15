@@ -103,6 +103,8 @@ Route::post('/login',[AuthController::class,'login']);
     Route::post('/sendMessage', [AuthController::class, 'sendMessage']);
     Route::get('/getrecepeints', [AuthController::class, 'getrecepeints']);
     Route::post('/composemessage', [AuthController::class, 'composenewmessage']);
+    Route::post('/markAsRead', [AuthController::class, 'markAsRead']);
+    Route::get('/getUnreadCount', [AuthController::class, 'getUnreadCount']);
 // });
 Route::middleware('auth:sanctum')->post('/logout',[AuthController::class,'logout']);
 

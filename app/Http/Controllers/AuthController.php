@@ -841,7 +841,7 @@ class AuthController extends Controller
     // Validate the incoming request data
     $validatedData = $request->validate([
         'fname' => 'sometimes|required|string|max:255',
-        'mname' => 'sometimes|nullable|string|max:12',
+        'mname' => 'nullable|string|max:12',
         'lname' => 'sometimes|required|string|max:255',
         'address' => 'sometimes|required|string|max:255',
         'email' => 'sometimes|required|email|max:255',
@@ -1014,6 +1014,32 @@ class AuthController extends Controller
     
         return response()->json($accounts);
     }
+    public function markAsRead(Request $request) {
+        $sid = $request->input('sid'); // The ID of the user whose messages are being marked as read
+
+        // Update the read_at timestamp for all messages involving the user
+        $read = DB::table('messages')
+            ->where(function($query) use ($sid) {
+                $query->where('messages.message_sender', '=', $sid) // Messages sent by the user
+                      ->orWhere('messages.message_reciever', '=', $sid); // Messages received by the user
+            })
+            ->update(['read_at' => now()]); // Set the read_at timestamp to the current time
+    
+        return response()->json(['success' => true, 'updated_count' => $read]);
+    }
+    public function getUnreadCount(Request $request)
+    {
+        $uid = $request->input('uid'); // Get the user ID from the request
+
+        // Count unread messages for the user
+        $unreadCount = DB::table('messages')
+            ->where('message_reciever', $uid)
+            ->where('read_at', null)
+            ->count();
+
+        // return response()->json(['unread_count' => $unreadCount]);
+        return $unreadCount;
+    }
     public function getMessages(Request $request) {
         $uid = $request->input('uid');
     
@@ -1058,13 +1084,66 @@ class AuthController extends Controller
                                 IFNULL(CONCAT(" ", LEFT(parent_guardians.mname, 1), "."), ""), 
                                 " ", 
                                 parent_guardians.lname)
-                    END as sender_name'))
+                    END as sender_name'),
+                DB::raw('IF(messages.read_at IS NULL, 0, 1) as is_read')
+                ) // Add is_read field
             ->havingRaw('sender_name IS NOT NULL')
             ->orderBy('messages.created_at', 'desc')
             ->get();
         
         return $msg;
-    }   
+    }
+    // public function getMessages(Request $request) {
+    //     $uid = $request->input('uid');
+    
+    //     // Main query to get messages for the entire conversation
+    //     $msg = DB::table('messages')
+    //         ->leftJoin('students', function ($join) {
+    //             $join->on('messages.message_sender', '=', 'students.LRN');
+    //         })
+    //         ->leftJoin('admins', function ($join) {
+    //             $join->on('messages.message_sender', '=', 'admins.admin_id');
+    //         })
+    //         ->leftJoin('parent_guardians', function ($join) {
+    //             $join->on('messages.message_sender', '=', 'parent_guardians.guardian_id');
+    //         })
+    //         ->leftJoin('students as receiver_students', function ($join) {
+    //             $join->on('messages.message_reciever', '=', 'receiver_students.LRN');
+    //         })
+    //         ->leftJoin('admins as receiver_admins', function ($join) {
+    //             $join->on('messages.message_reciever', '=', 'receiver_admins.admin_id');
+    //         })
+    //         ->leftJoin('parent_guardians as receiver_guardians', function ($join) {
+    //             $join->on('messages.message_reciever', '=', 'receiver_guardians.guardian_id');
+    //         })
+    //         ->where(function($query) use ($uid) {
+    //             $query->where('messages.message_sender', '=', $uid) // Messages sent by the user
+    //                   ->orWhere('messages.message_reciever', '=', $uid); // Messages received by the user
+    //         })
+    //         ->select('messages.*', 
+    //             DB::raw('CASE 
+    //                     WHEN messages.message_sender IN (SELECT LRN FROM students) THEN 
+    //                         CONCAT(students.fname, 
+    //                             IFNULL(CONCAT(" ", LEFT(students.mname, 1), "."), ""), 
+    //                             " ", 
+    //                             students.lname)
+    //                     WHEN messages.message_sender IN (SELECT admin_id FROM admins) THEN 
+    //                         CONCAT(receiver_students.fname, 
+    //                             IFNULL(CONCAT(" ", LEFT(receiver_students.mname, 1), "."), ""), 
+    //                             " ", 
+    //                             receiver_students.lname)
+    //                     WHEN messages.message_sender IN (SELECT guardian_id FROM parent_guardians) THEN 
+    //                         CONCAT(parent_guardians.fname, 
+    //                             IFNULL(CONCAT(" ", LEFT(parent_guardians.mname, 1), "."), ""), 
+    //                             " ", 
+    //                             parent_guardians.lname)
+    //                 END as sender_name'))
+    //         ->havingRaw('sender_name IS NOT NULL')
+    //         ->orderBy('messages.created_at', 'desc')
+    //         ->get();
+        
+    //     return $msg;
+    // }   
     public function getConvo(Request $request, $sid) {
         // Initialize the response variable
         $user = null;
